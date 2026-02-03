@@ -76,8 +76,12 @@ export default function Denuncias() {
 
 
   // refresco simple
-  const [tick, setTick] = useState(0);
-  const allLive = useMemo(() => listReports(), [tick]);
+const [tick, setTick] = useState(0);
+const allLive = useMemo(() => {
+  void tick; // ✅ marca tick como usado
+  return listReports();
+}, [tick]);
+
 
   const canManage = user?.role === "manager";
   const isLogged = !!user;
