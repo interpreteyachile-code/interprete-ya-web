@@ -139,6 +139,7 @@ export function AuthProvider({ children }) {
   const login = loginUserByRut; // /login usa login()
   const loginManager = loginManagerByEmail; // /login-gerente usa loginManager()
 
+  // ✅ FIX Vercel: agregar dependencias completas
   const value = useMemo(
     () => ({
       user,
@@ -149,7 +150,7 @@ export function AuthProvider({ children }) {
       register,
       logout,
     }),
-    [user]
+    [user, login, loginManager, loginUserByRut, loginManagerByEmail, register, logout]
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
