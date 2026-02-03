@@ -3,9 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { createReport, listReports, updateReport } from "../data/reportsStore";
 
-function cx(...arr) {
-  return arr.filter(Boolean).join(" ");
-}
+
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -75,7 +73,7 @@ export default function Denuncias() {
   const [selected, setSelected] = useState(null);
   const [managerNote, setManagerNote] = useState("");
 
-  const all = useMemo(() => listReports(), []);
+
 
   // refresco simple
   const [tick, setTick] = useState(0);
