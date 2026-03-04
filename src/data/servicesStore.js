@@ -12,7 +12,6 @@ function save(items) {
   localStorage.setItem(KEY, JSON.stringify(items));
 }
 
-// ✅ para tu Solicitud (si ya tienes otro store, puedes ignorar esto)
 export function listServices() {
   return load();
 }
@@ -24,29 +23,27 @@ export function createService(payload) {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
 
-    // cliente
-    clientId: payload.clientId,
-    clientName: payload.clientName,
+    // flujo
+    status: "requested", // requested | accepted | in_progress | paid | done | cancelled
 
-    // modo
+    // datos básicos
     mode: payload.mode || "now", // now | schedule | video
+    serviceType: payload.serviceType || "tramite", // tramite | reunion | entrevista | evento
+    zone: payload.zone || "centro", // norte | centro | sur
+    whenISO: payload.whenISO || null, // para agenda
 
-    // pago demo
-    amountCLP: payload.amountCLP || 0,
+    // cliente (demo)
+    clientRut: payload.clientRut || "",
+    clientName: payload.clientName || "",
 
-    // códigos “QR demo”
-    startCode: payload.startCode || Math.random().toString(36).slice(2, 8).toUpperCase(),
-    endCode: payload.endCode || Math.random().toString(36).slice(2, 8).toUpperCase(),
-
-    // intérprete
+    // intérprete (demo)
     interpreterId: null,
-    interpreterName: null,
 
-    // estados
-    status: "created", // created | matched | started | finished | paid | rated
+    // pago (demo)
+    priceCLP: Number(payload.priceCLP || 0),
+    paidAt: null,
 
-    startedAt: null,
-    finishedAt: null,
+    note: payload.note || "",
   };
 
   items.unshift(s);
@@ -62,4 +59,18 @@ export function updateService(id, patch) {
   items[idx] = { ...items[idx], ...patch };
   save(items);
   return items[idx];
+}
+
+
+export function getService(serviceId) {
+  return load().find((x) => x.id === serviceId) || null;
+}
+
+export function cancelService(serviceId) {
+  const items = load();
+  const s = items.find((x) => x.id === serviceId);
+  if (!s) return null;
+  s.status = "cancelled";
+  save(items);
+  return s;
 }

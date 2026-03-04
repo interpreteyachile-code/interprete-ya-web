@@ -7,6 +7,7 @@ import Solicitud from "./pages/Solicitud";
 import Denuncias from "./pages/Denuncias";
 import Cursos from "./pages/Cursos";
 import Alianzas from "./pages/Alianzas";
+import Propuesta from "./pages/Propuesta";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -16,6 +17,7 @@ import ManagerDashboard from "./pages/ManagerDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import InterpreterDashboard from "./pages/InterpreterDashboard";
 import LoginGerente from "./pages/LoginGerente";
+
 
 import ProtectedRoute from "./auth/ProtectedRoute";
 
@@ -28,7 +30,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
-
+<Route path="/propuesta" element={<Propuesta />} />
           {/* AUTH */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
