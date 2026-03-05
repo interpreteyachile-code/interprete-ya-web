@@ -74,3 +74,35 @@ export function cancelService(serviceId) {
   save(items);
   return s;
 }
+
+export function autoAssignInterpreter(serviceId) {
+
+  const services = load();
+  const users = JSON.parse(localStorage.getItem("iy_users_v1") || "[]");
+
+  const interpretes = users.filter(
+    (u) =>
+      u.profileType === "interpreter" &&
+      u.status === "active"
+  );
+
+  if (interpretes.length === 0) {
+    throw new Error("No hay intérpretes disponibles");
+  }
+
+  // elegir uno al azar (luego se puede mejorar)
+  const selected =
+    interpretes[Math.floor(Math.random() * interpretes.length)];
+
+  const idx = services.findIndex((s) => s.id === serviceId);
+
+  if (idx === -1) return null;
+
+  services[idx].interpreterId = selected.id;
+  services[idx].status = "assigned";
+
+  save(services);
+
+  return selected;
+
+}

@@ -8,6 +8,11 @@ import Denuncias from "./pages/Denuncias";
 import Cursos from "./pages/Cursos";
 import Alianzas from "./pages/Alianzas";
 import Propuesta from "./pages/Propuesta";
+import VideoRoom from "./pages/VideoRoom";
+import CalificarServicio from "./pages/CalificarServicio";
+import HistorialServicios from "./pages/HistorialServicios";
+import InterpretesDisponibles from "./pages/InterpretesDisponibles";
+import MapaInterpretes from "./pages/MapaInterpretes";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -30,6 +35,11 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
+          <Route path="/video/:roomId" element={<VideoRoom />} />
+          <Route path="/calificar/:serviceId" element={<CalificarServicio />} />
+          <Route path="/historial" element={<HistorialServicios />} />
+          <Route path="/interpretes" element={<InterpretesDisponibles />} />
+          <Route path="/mapa" element={<MapaInterpretes />} />
 <Route path="/propuesta" element={<Propuesta />} />
           {/* AUTH */}
           <Route path="/login" element={<Login />} />
