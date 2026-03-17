@@ -4,7 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 
 export default function LoginGerente() {
   const nav = useNavigate();
-  const { loginManager } = useAuth(); // ✅ alias gerente
+  const { loginManager } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,30 +13,35 @@ export default function LoginGerente() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || "").trim());
-
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!emailOk) return setError("⚠️ Correo inválido.");
-    if (!password) return setError("⚠️ Escribe tu contraseña.");
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      return setError("⚠️ Escribe tu correo de gerente.");
+    }
+
+    if (!password) {
+      return setError("⚠️ Escribe tu contraseña.");
+    }
 
     try {
       setLoading(true);
-      await loginManager({ email, password });
-      nav("/gerente", { replace: true });
+      await loginManager({ email: cleanEmail, password });
+      nav("/panel", { replace: true });
     } catch (err) {
       const msg =
         err?.code === "NO_EXISTS"
-          ? "❌ No existe un gerente con ese correo."
+          ? "❌ No existe una cuenta gerente con ese correo."
           : err?.code === "BAD_PASSWORD"
           ? "❌ Contraseña incorrecta."
           : err?.code === "NOT_MANAGER"
-          ? "⛔ Este correo no es de gerente."
+          ? "⛔ Esta cuenta no tiene permisos de gerente."
           : err?.code === "NOT_ACTIVE"
-          ? "⛔ Cuenta no activa."
-          : "❌ No se pudo ingresar.";
+          ? "⏳ La cuenta gerente no está activa."
+          : "❌ No se pudo ingresar como gerente.";
 
       setError(msg);
     } finally {
@@ -50,46 +55,48 @@ export default function LoginGerente() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-2xl font-semibold h-title">🧑‍💼 Acceso Gerente</div>
+            <div className="text-2xl font-semibold h-title">
+              🛡️ Ingreso Gerente
+            </div>
             <div className="text-sm text-white/70 mt-1">
-              Ingreso seguro (correo + contraseña)
+              Acceso administrativo seguro
             </div>
           </div>
 
-          {/* Marco logo */}
           <div className="w-12 h-12 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center">
-            🛡️
+            👔
           </div>
         </div>
 
         <div className="mt-4 glow-line" />
 
+        {/* Error */}
         {error && (
           <div className="mt-4 tron-card p-3 text-sm text-white/85">
             {error}
           </div>
         )}
 
+        {/* Form */}
         <form className="mt-4 grid gap-3" onSubmit={onSubmit}>
-          {/* Email */}
           <div>
-            <label className="text-sm text-white/70">Correo</label>
+            <label className="text-sm text-white/70">Correo gerente</label>
             <input
+              type="email"
               value={email}
               onChange={(e) => {
                 setError("");
                 setEmail(e.target.value);
               }}
-              inputMode="email"
               autoComplete="username"
-              placeholder="correo@dominio.cl"
+              placeholder="gerente@interpreteya.cl"
               className="tron-input mt-1 w-full"
             />
           </div>
 
-          {/* Password */}
           <div>
             <label className="text-sm text-white/70">Contraseña</label>
+
             <div className="mt-1 flex gap-2">
               <input
                 type={showPass ? "text" : "password"}
@@ -116,25 +123,36 @@ export default function LoginGerente() {
           <button
             className={
               "tron-btn tron-primary w-full py-3 font-semibold " +
-              (!emailOk || !password || loading ? "opacity-70 cursor-not-allowed" : "")
+              (!email.trim() || !password || loading
+                ? "opacity-70 cursor-not-allowed"
+                : "")
             }
-            disabled={!emailOk || !password || loading}
+            disabled={!email.trim() || !password || loading}
           >
-            {loading ? "⏳ Ingresando..." : "✅ Entrar como Gerente"}
+            {loading ? "⏳ Ingresando..." : "✅ Entrar como gerente"}
           </button>
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" className="tron-btn tron-muted py-2" onClick={() => nav("/")}>
+            <button
+              type="button"
+              className="tron-btn tron-muted py-2"
+              onClick={() => nav("/")}
+            >
               🏠 Inicio
             </button>
-            <button type="button" className="tron-btn py-2" onClick={() => nav("/login")}>
-              🔐 Login usuario
+
+            <button
+              type="button"
+              className="tron-btn py-2"
+              onClick={() => nav("/login")}
+            >
+              👤 Login usuario
             </button>
           </div>
         </form>
 
         <div className="text-xs text-white/55 mt-4">
-          🔒 Acceso exclusivo para gerencia.
+          🔐 Acceso solo para cuentas con rol gerente activas.
         </div>
       </div>
     </div>

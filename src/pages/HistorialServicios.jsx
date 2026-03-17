@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listServices } from "../data/servicesStore";
 
@@ -6,84 +7,212 @@ function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
 }
 
-export default function HistorialServicios() {
+function moneyCLP(n) {
+  return "$" + Number(n || 0).toLocaleString("es-CL");
+}
 
+function statusLabel(status) {
+  return status === "created"
+    ? "🧾 Creado"
+    : status === "matched"
+    ? "🤝 Asignado"
+    : status === "started"
+    ? "🔳 En curso"
+    : status === "finished"
+    ? "🏁 Finalizado"
+    : status === "paid"
+    ? "💳 Pagado"
+    : status === "rated"
+    ? "⭐ Evaluado"
+    : status === "cancelled"
+    ? "⛔ Cancelado"
+    : "—";
+}
+
+function modeLabel(mode) {
+  return mode === "video"
+    ? "🎥 Video"
+    : mode === "schedule"
+    ? "📅 Agenda"
+    : "⚡ Ahora";
+}
+
+function serviceTypeLabel(type) {
+  return type === "tramite"
+    ? "🧾 Trámite"
+    : type === "reunion"
+    ? "👥 Reunión"
+    : type === "entrevista"
+    ? "💼 Entrevista"
+    : type === "evento"
+    ? "🎤 Evento"
+    : "🧩 Servicio";
+}
+
+function zoneLabel(zone) {
+  return zone === "norte"
+    ? "🌵 Norte"
+    : zone === "sur"
+    ? "🌲 Sur"
+    : "🏙️ Centro";
+}
+
+export default function HistorialServicios() {
+  const nav = useNavigate();
   const { user } = useAuth();
 
-  const services = useMemo(() => {
-
-    const all = listServices();
+  const history = useMemo(() => {
+    const all = listServices().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     if (!user) return [];
 
-    if (user.role === "manager") return all;
+    if (user.role === "manager") {
+      return all;
+    }
 
     if (user.profileType === "interpreter") {
       return all.filter((s) => s.interpreterId === user.id);
     }
 
     return all.filter((s) => s.clientRut === user.rut);
-
   }, [user]);
 
-  return (
+  const counts = useMemo(() => {
+    return {
+      total: history.length,
+      finished: history.filter((s) => s.status === "finished").length,
+      paid: history.filter((s) => s.status === "paid").length,
+      rated: history.filter((s) => s.status === "rated").length,
+      cancelled: history.filter((s) => s.status === "cancelled").length,
+    };
+  }, [history]);
 
-    <div className="max-w-5xl mx-auto grid gap-4">
-
-      <div className="tron-card p-6">
-
-        <div className="text-2xl font-semibold">
-          📜 Historial de Servicios
+  if (!user) {
+    return (
+      <div className="tron-card p-6 max-w-xl mx-auto">
+        🔒 Debes iniciar sesión.
+        <div className="mt-3">
+          <button
+            className="tron-btn tron-primary"
+            onClick={() => nav("/login")}
+          >
+            🔐 Login
+          </button>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {/* HEADER */}
+      <div className="tron-card p-6">
+        <div className="text-2xl font-semibold h-title">📜 Historial de Servicios</div>
 
         <div className="text-white/70 mt-2">
-          Servicios realizados en InterpreteYa
+          Revisa servicios anteriores, su estado y detalles.
         </div>
 
+        <div className="mt-4 flex gap-2 flex-wrap">
+          <Chip>📄 Total: {counts.total}</Chip>
+          <Chip>🏁 Finalizados: {counts.finished}</Chip>
+          <Chip>💳 Pagados: {counts.paid}</Chip>
+          <Chip>⭐ Evaluados: {counts.rated}</Chip>
+          <Chip>⛔ Cancelados: {counts.cancelled}</Chip>
+        </div>
+
+        <div className="mt-4">
+          <button
+            className="tron-btn tron-muted py-3"
+            onClick={() => {
+              if (user.role === "manager") nav("/gerente");
+              else if (user.profileType === "interpreter") nav("/interprete");
+              else nav("/usuario");
+            }}
+          >
+            ⬅️ Volver al panel
+          </button>
+        </div>
       </div>
 
-      {services.length === 0 && (
-
-        <div className="tron-card p-6 text-white/60">
-          Aún no hay servicios registrados
+      {/* LISTA */}
+      {history.length === 0 ? (
+        <div className="tron-card p-6 text-white/70">
+          No hay servicios en el historial.
         </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-3">
+          {history.map((s) => (
+            <div key={s.id} className="tron-card p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-lg">
+                    {serviceTypeLabel(s.serviceType)}
+                  </div>
 
-      )}
+                  <div className="text-sm text-white/70 mt-1">
+                    {modeLabel(s.mode)} • {zoneLabel(s.zone)}
+                  </div>
+                </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
-
-        {services.map((s) => (
-
-          <div key={s.id} className="tron-card p-5">
-
-            <div className="flex justify-between">
-
-              <div className="font-semibold">
-                🧩 {s.serviceType || "Servicio"}
+                <Chip>{statusLabel(s.status)}</Chip>
               </div>
 
-              <Chip>{s.status}</Chip>
+              <div className="mt-3 text-sm text-white/75">
+                👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b>
+              </div>
 
+              <div className="text-sm text-white/75 mt-1">
+                🧑‍💼 Intérprete: <b>{s.interpreterName || "—"}</b>
+              </div>
+
+              <div className="text-sm text-white/75 mt-1">
+                💳 Monto: <b>{moneyCLP(s.amountCLP)}</b>
+              </div>
+
+              <div className="text-sm text-white/75 mt-1">
+                ⏱️ Duración: <b>{s.durationMin || 30} min</b>
+              </div>
+
+              {s.scheduledAt && (
+                <div className="text-sm text-white/75 mt-1">
+                  📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
+                </div>
+              )}
+
+              {s.startedAt && (
+                <div className="text-sm text-white/65 mt-1">
+                  ▶️ Inicio: {new Date(s.startedAt).toLocaleString("es-CL")}
+                </div>
+              )}
+
+              {s.finishedAt && (
+                <div className="text-sm text-white/65 mt-1">
+                  🏁 Fin: {new Date(s.finishedAt).toLocaleString("es-CL")}
+                </div>
+              )}
+
+              {s.note && (
+                <div className="text-sm text-white/65 mt-2">
+                  📝 {s.note}
+                </div>
+              )}
+
+              {(s.status === "finished" || s.status === "paid") &&
+                user.profileType === "user" && (
+                  <div className="mt-4">
+                    <button
+                      className="tron-btn tron-primary w-full py-3 font-semibold"
+                      onClick={() => nav(`/calificar/${s.id}`)}
+                    >
+                      ⭐ Calificar servicio
+                    </button>
+                  </div>
+                )}
             </div>
-
-            <div className="text-sm text-white/70 mt-2">
-
-              📍 Zona: {s.zone || "—"}
-
-            </div>
-
-            <div className="text-sm text-white/70">
-
-              💰 ${Number(s.amountCLP || 0).toLocaleString("es-CL")}
-
-            </div>
-
-          </div>
-
-        ))}
-
-      </div>
-
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "./app/AppShell";
 
@@ -17,44 +18,104 @@ import MapaInterpretes from "./pages/MapaInterpretes";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Pending from "./pages/Pending";
-
 import ManagerDashboard from "./pages/ManagerDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import InterpreterDashboard from "./pages/InterpreterDashboard";
 import LoginGerente from "./pages/LoginGerente";
 
-
 import ProtectedRoute from "./auth/ProtectedRoute";
 
-export default function App() {
+function RedirectByRole() {
+  const rawUser = localStorage.getItem("iy_session_v1");
+
+  if (!rawUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const user = JSON.parse(rawUser);
+
+    if (user?.status !== "active") {
+      return <Navigate to="/pending" replace />;
+    }
+
+    if (user?.role === "manager") {
+      return <Navigate to="/gerente" replace />;
+    }
+
+    if (user?.profileType === "interpreter") {
+      return <Navigate to="/interprete" replace />;
+    }
+
+    if (user?.profileType === "user") {
+      return <Navigate to="/usuario" replace />;
+    }
+
+    return <Navigate to="/" replace />;
+  } catch {
+    return <Navigate to="/login" replace />;
+  }
+}
+
+function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          {/* PUBLIC */}
+          {/* Públicas */}
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
-          <Route path="/video/:roomId" element={<VideoRoom />} />
-          <Route path="/calificar/:serviceId" element={<CalificarServicio />} />
-          <Route path="/historial" element={<HistorialServicios />} />
+          <Route path="/propuesta" element={<Propuesta />} />
           <Route path="/interpretes" element={<InterpretesDisponibles />} />
           <Route path="/mapa" element={<MapaInterpretes />} />
-<Route path="/propuesta" element={<Propuesta />} />
-          {/* AUTH */}
+
+          {/* Login / Registro */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/pending" element={<Pending />} />
-
-          {/* ✅ Gerente PRIVADO (ruta oculta) */}
           <Route path="/g/login" element={<LoginGerente />} />
-          <Route path="/login-gerente" element={<Navigate to="/" replace />} />
+          <Route
+            path="/login-gerente"
+            element={<Navigate to="/g/login" replace />}
+          />
+          <Route path="/panel" element={<RedirectByRole />} />
 
-          {/* 🔒 RUTAS AVANZADAS (solo con sesión ACTIVE) */}
+          {/* Flujo de servicio protegido */}
+          <Route
+            path="/video/:roomId"
+            element={
+              <ProtectedRoute requireStatus="active">
+                <VideoRoom />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calificar/:serviceId"
+            element={
+              <ProtectedRoute requireStatus="active">
+                <CalificarServicio />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/historial"
+            element={
+              <ProtectedRoute requireStatus="active">
+                <HistorialServicios />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Protegidas por rol / perfil */}
           <Route
             path="/solicitud"
             element={
-              <ProtectedRoute requireStatus="active">
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["user"]}
+                requireStatus="active"
+              >
                 <Solicitud />
               </ProtectedRoute>
             }
@@ -76,35 +137,49 @@ export default function App() {
             }
           />
 
-          {/* DASHBOARDS */}
+          {/* Dashboards */}
           <Route
             path="/usuario"
             element={
-              <ProtectedRoute allowRoles={["client"]} requireStatus="active">
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["user"]}
+                requireStatus="active"
+              >
                 <UserDashboard />
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/interprete"
             element={
-              <ProtectedRoute allowRoles={["client"]} requireStatus="active">
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["interpreter"]}
+                requireStatus="active"
+              >
                 <InterpreterDashboard />
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/gerente"
             element={
-              <ProtectedRoute allowRoles={["manager"]} requireStatus="active">
+              <ProtectedRoute
+                allowRoles={["manager"]}
+                requireStatus="active"
+              >
                 <ManagerDashboard />
               </ProtectedRoute>
             }
           />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
   );
 }
+
+export default App;

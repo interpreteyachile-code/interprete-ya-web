@@ -1,3 +1,6 @@
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { listUsers } from "../data/demoStore";
@@ -8,59 +11,73 @@ export default function MapaInterpretes() {
 
   const interpretes = useMemo(() => {
 
-    const users = listUsers();
+    const users = listUsers ? listUsers() : [];
 
-    return users.filter(
-      (u) =>
-        u.profileType === "interpreter" &&
-        u.status === "active"
-    );
+    return users
+      .filter((u) => u?.profileType === "interpreter" && u?.status === "active")
+      .map((u) => ({
+        ...u,
+        lat: -33.45 + (Math.random() - 0.5) * 0.05,
+        lng: -70.66 + (Math.random() - 0.5) * 0.05
+      }));
 
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto grid gap-4">
+    <div className="max-w-6xl mx-auto grid gap-4">
 
       <div className="tron-card p-6">
         <div className="text-2xl font-semibold">
-          📍 Intérpretes disponibles
+          📍 Intérpretes cercanos
         </div>
 
         <div className="text-white/70 mt-2">
-          Lista de intérpretes activos en InterpreteYa
+          Encuentra intérpretes disponibles cerca de ti
         </div>
       </div>
 
-      {interpretes.length === 0 && (
-        <div className="tron-card p-6 text-white/60">
-          No hay intérpretes disponibles
-        </div>
-      )}
+      <div className="tron-card p-2">
 
-      <div className="grid md:grid-cols-2 gap-3">
+        <MapContainer
+          center={[-33.45, -70.66]}
+          zoom={12}
+          style={{ height: "600px", width: "100%" }}
+        >
 
-        {interpretes.map((i) => (
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="© OpenStreetMap"
+          />
 
-          <div key={i.id} className="tron-card p-5">
-
-            <div className="font-semibold text-lg">
-              👩‍💼 {i.fullName}
-            </div>
-
-            <div className="text-sm text-white/60 mt-1">
-              Intérprete LSCh
-            </div>
-
-            <button
-              className="tron-btn tron-primary mt-3 w-full"
-              onClick={() => nav("/interprete/" + i.id)}
+          {interpretes.map((i) => (
+            <Marker
+              key={i.id || Math.random()}
+              position={[i.lat, i.lng]}
             >
-              Ver perfil
-            </button>
 
-          </div>
+              <Popup>
 
-        ))}
+                <div className="grid gap-2">
+
+                  <div className="font-semibold">
+                    👩‍💼 {i.fullName || "Intérprete"}
+                  </div>
+
+                  <button
+                    className="tron-btn tron-primary"
+                    onClick={() => nav("/interprete/" + i.id)}
+                  >
+                    Ver perfil
+                  </button>
+
+                </div>
+
+              </Popup>
+
+            </Marker>
+          ))}
+
+        </MapContainer>
 
       </div>
 

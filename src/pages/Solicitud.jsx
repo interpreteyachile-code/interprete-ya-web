@@ -1,17 +1,59 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createService } from "../data/servicesStore";
 import { useAuth } from "../auth/AuthContext";
+
+function moneyCLP(n) {
+  return "$" + Number(n || 0).toLocaleString("es-CL");
+}
+
+function calcPrice({ mode, serviceType, durationMin }) {
+  let base = 0;
+
+  if (mode === "now") base = 12000;
+  else if (mode === "schedule") base = 15000;
+  else if (mode === "video") base = 10000;
+
+  let extraType = 0;
+  if (serviceType === "reunion") extraType = 4000;
+  else if (serviceType === "entrevista") extraType = 5000;
+  else if (serviceType === "evento") extraType = 8000;
+
+  let extraDuration = 0;
+  if (durationMin > 30) {
+    extraDuration = Math.ceil((durationMin - 30) / 30) * 5000;
+  }
+
+  return base + extraType + extraDuration;
+}
 
 export default function Solicitud() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState("now");
-  const [serviceType, setServiceType] = useState("tramite");
-  const [zone, setZone] = useState("centro");
-  const [priceCLP, setPriceCLP] = useState("");
+  const [mode, setMode] = useState("now"); // now | schedule | video
+  const [serviceType, setServiceType] = useState("tramite"); // tramite | reunion | entrevista | evento
+  const [zone, setZone] = useState("centro"); // norte | centro | sur
+  const [durationMin, setDurationMin] = useState("30");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const amountCLP = useMemo(() => {
+    return calcPrice({
+      mode,
+      serviceType,
+      durationMin: Number(durationMin) || 30,
+    });
+  }, [mode, serviceType, durationMin]);
+
+  const scheduledAt = useMemo(() => {
+    if (mode !== "schedule") return null;
+    if (!scheduledDate || !scheduledTime) return null;
+    return `${scheduledDate}T${scheduledTime}`;
+  }, [mode, scheduledDate, scheduledTime]);
 
   if (!user) {
     return (
@@ -22,39 +64,76 @@ export default function Solicitud() {
   }
 
   const submit = () => {
-    createService({
-      mode,
-      serviceType,
-      zone,
-      priceCLP: Number(priceCLP) || 0,
-      clientRut: user.rut,
-      note,
-      status: "requested",
-    });
+    setError("");
 
-    alert("✅ Solicitud enviada");
+    if (mode === "schedule" && (!scheduledDate || !scheduledTime)) {
+      setError("⚠️ Debes elegir fecha y hora para una solicitud agendada.");
+      return;
+    }
 
-    nav("/usuario");
+    if (!note.trim()) {
+      setError("⚠️ Escribe una breve descripción del servicio.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      createService({
+        clientId: user.id,
+        clientName: user.fullName,
+        clientRut: user.rut,
+        mode,
+        serviceType,
+        zone,
+        durationMin: Number(durationMin) || 30,
+        amountCLP,
+        note: note.trim(),
+        scheduledAt,
+        status: "created",
+      });
+
+      alert("✅ Solicitud enviada correctamente");
+      nav("/usuario", { replace: true });
+    } catch (err) {
+      setError("❌ No se pudo crear la solicitud.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto grid gap-4">
-
       <div className="tron-card p-6">
-        <div className="text-2xl font-semibold">🤟 Solicitar Intérprete</div>
+        <div className="text-2xl font-semibold h-title">🤟 Solicitar Intérprete</div>
         <div className="text-white/70 mt-2">
-          Completa los datos para crear la solicitud.
+          Completa los datos para crear tu solicitud en InterpreteYa.
+        </div>
+
+        <div className="mt-4 tron-card p-4">
+          <div className="text-sm text-white/80">
+            👤 Cliente: <b>{user.fullName}</b>
+          </div>
+          <div className="text-xs text-white/55 mt-1">
+            🪪 RUT: {user.rut}
+          </div>
         </div>
       </div>
 
-      <div className="tron-card p-5 grid gap-3">
+      {error && (
+        <div className="tron-card p-4 text-sm text-white/85">
+          {error}
+        </div>
+      )}
 
+      <div className="tron-card p-5 grid gap-4">
         {/* MODO */}
         <div>
-          <div className="text-sm text-white/70 mb-1">⚡ Modo</div>
+          <div className="text-sm text-white/70 mb-2">⚡ Modalidad</div>
 
           <div className="grid grid-cols-3 gap-2">
             <button
+              type="button"
               className={`tron-btn ${mode === "now" ? "tron-primary" : ""}`}
               onClick={() => setMode("now")}
             >
@@ -62,6 +141,7 @@ export default function Solicitud() {
             </button>
 
             <button
+              type="button"
               className={`tron-btn ${mode === "schedule" ? "tron-primary" : ""}`}
               onClick={() => setMode("schedule")}
             >
@@ -69,6 +149,7 @@ export default function Solicitud() {
             </button>
 
             <button
+              type="button"
               className={`tron-btn ${mode === "video" ? "tron-primary" : ""}`}
               onClick={() => setMode("video")}
             >
@@ -77,7 +158,7 @@ export default function Solicitud() {
           </div>
         </div>
 
-        {/* SERVICIO */}
+        {/* TIPO SERVICIO */}
         <div>
           <div className="text-sm text-white/70 mb-1">🧩 Tipo de servicio</div>
 
@@ -108,38 +189,132 @@ export default function Solicitud() {
           </select>
         </div>
 
-        {/* PRECIO */}
+        {/* DURACION */}
         <div>
-          <div className="text-sm text-white/70 mb-1">💳 Precio CLP</div>
+          <div className="text-sm text-white/70 mb-1">⏱️ Duración estimada</div>
 
-          <input
-            className="tron-input w-full"
-            placeholder="Ej: 20000"
-            value={priceCLP}
-            onChange={(e) => setPriceCLP(e.target.value)}
-          />
+          <select
+            className="tron-select w-full"
+            value={durationMin}
+            onChange={(e) => setDurationMin(e.target.value)}
+          >
+            <option value="30">30 minutos</option>
+            <option value="60">1 hora</option>
+            <option value="90">1 hora 30 min</option>
+            <option value="120">2 horas</option>
+          </select>
         </div>
+
+        {/* FECHA / HORA SOLO AGENDA */}
+        {mode === "schedule" && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <div className="text-sm text-white/70 mb-1">📅 Fecha</div>
+              <input
+                type="date"
+                className="tron-input w-full"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <div className="text-sm text-white/70 mb-1">🕒 Hora</div>
+              <input
+                type="time"
+                className="tron-input w-full"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* NOTA */}
         <div>
-          <div className="text-sm text-white/70 mb-1">📝 Nota</div>
+          <div className="text-sm text-white/70 mb-1">📝 Descripción</div>
 
           <textarea
             className="tron-input w-full"
-            rows="3"
-            placeholder="Describe el servicio"
+            rows={4}
+            placeholder="Ej: necesito intérprete para reunión médica, entrevista laboral, trámite, etc."
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
         </div>
 
-        <button
-          className="tron-btn tron-primary w-full py-3 font-semibold"
-          onClick={submit}
-        >
-          🚀 Crear solicitud
-        </button>
+        {/* RESUMEN */}
+        <div className="tron-card p-4">
+          <div className="font-semibold">📌 Resumen</div>
 
+          <div className="text-sm text-white/75 mt-2">
+            Modalidad:{" "}
+            <b>
+              {mode === "now"
+                ? "⚡ Ahora"
+                : mode === "schedule"
+                ? "📅 Agenda"
+                : "🎥 Video"}
+            </b>
+          </div>
+
+          <div className="text-sm text-white/75 mt-1">
+            Tipo:{" "}
+            <b>
+              {serviceType === "tramite"
+                ? "🧾 Trámite"
+                : serviceType === "reunion"
+                ? "👥 Reunión"
+                : serviceType === "entrevista"
+                ? "💼 Entrevista"
+                : "🎤 Evento"}
+            </b>
+          </div>
+
+          <div className="text-sm text-white/75 mt-1">
+            Duración: <b>{durationMin} min</b>
+          </div>
+
+          <div className="text-sm text-white/75 mt-1">
+            Zona:{" "}
+            <b>
+              {zone === "norte" ? "🌵 Norte" : zone === "centro" ? "🏙️ Centro" : "🌲 Sur"}
+            </b>
+          </div>
+
+          {mode === "schedule" && scheduledAt && (
+            <div className="text-sm text-white/75 mt-1">
+              Fecha agendada: <b>{scheduledDate}</b> a las <b>{scheduledTime}</b>
+            </div>
+          )}
+
+          <div className="text-lg font-semibold mt-3">
+            💳 Precio estimado: {moneyCLP(amountCLP)}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="tron-btn tron-muted py-3"
+            onClick={() => nav("/usuario")}
+            disabled={submitting}
+          >
+            ⬅️ Volver
+          </button>
+
+          <button
+            type="button"
+            className={
+              "tron-btn tron-primary py-3 font-semibold " +
+              (submitting ? "opacity-70 cursor-not-allowed" : "")
+            }
+            onClick={submit}
+            disabled={submitting}
+          >
+            {submitting ? "⏳ Enviando..." : "🚀 Crear solicitud"}
+          </button>
+        </div>
       </div>
     </div>
   );

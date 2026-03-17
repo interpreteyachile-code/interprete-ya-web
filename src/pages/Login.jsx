@@ -60,7 +60,7 @@ export default function Login() {
     try {
       setLoading(true);
       await login({ rut, password });
-      nav("/", { replace: true });
+      nav("/panel", { replace: true });
     } catch (err) {
       if (err?.code === "PENDING")
         return setError("⏳ Tu cuenta está pendiente de aprobación (Gerente).");

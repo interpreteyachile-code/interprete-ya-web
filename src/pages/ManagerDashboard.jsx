@@ -56,10 +56,21 @@ function modeLabel(m) {
   return m === "video" ? "🎥 Video" : m === "schedule" ? "📅 Agenda" : "⚡ Ahora";
 }
 
+function specialtyLabel(s) {
+  return s === "salud"
+    ? "🏥 Salud"
+    : s === "educacion"
+    ? "🏫 Educación"
+    : s === "legal"
+    ? "⚖️ Legal"
+    : s === "empresa"
+    ? "🏢 Empresa"
+    : "🧩 General";
+}
+
 export default function ManagerDashboard() {
   const { user } = useAuth();
 
-  // ✅ Hooks SIEMPRE arriba (evita el error rules-of-hooks)
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState("accounts"); // accounts | services
   const [q, setQ] = useState("");
@@ -78,7 +89,7 @@ export default function ManagerDashboard() {
   const isLogged = !!user;
   const isManager = user?.role === "manager";
 
-  // ✅ Cuentas (no managers)
+  // cuentas (no managers)
   const allClients = useMemo(() => {
     return listUsers().filter((u) => u.role !== "manager");
   }, [tick]);
@@ -106,7 +117,7 @@ export default function ManagerDashboard() {
     return { pending, active, rejected };
   }, [allClients]);
 
-  // ✅ Servicios
+  // servicios
   const allServices = useMemo(() => {
     return [...listServices()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [tick]);
@@ -138,17 +149,19 @@ export default function ManagerDashboard() {
     };
   }, [allServices]);
 
-  // ✅ seguridad UI
-  if (!isLogged) return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Debes iniciar sesión.</div>;
-  if (!isManager) return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Solo gerente.</div>;
+  if (!isLogged) {
+    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Debes iniciar sesión.</div>;
+  }
 
-  // acciones cuentas
+  if (!isManager) {
+    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Solo gerente.</div>;
+  }
+
   const setAccountStatus = (id, status) => {
     updateUserStatus(id, status);
     setTick((x) => x + 1);
   };
 
-  // acciones servicios (demo)
   const setServicePatch = (id, patch) => {
     const next = updateService(id, patch);
     setSelectedService((s) => (s && s.id === id ? next : s));
@@ -191,14 +204,22 @@ export default function ManagerDashboard() {
 
         {/* TABS */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")} onClick={() => setTab("accounts")}>
+          <button
+            className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
+            onClick={() => setTab("accounts")}
+          >
             👤 Cuentas
           </button>
-          <button className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")} onClick={() => setTab("services")}>
+
+          <button
+            className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")}
+            onClick={() => setTab("services")}
+          >
             🧾 Servicios
           </button>
 
           <div className="flex-1" />
+
           <input
             className="tron-input w-full sm:w-[340px]"
             placeholder="🔎 Buscar (nombre / rut / correo / id)"
@@ -213,14 +234,22 @@ export default function ManagerDashboard() {
         <div className="grid gap-3">
           <div className="tron-card p-5">
             <div className="grid md:grid-cols-3 gap-2">
-              <select className="tron-select" value={accStatus} onChange={(e) => setAccStatus(e.target.value)}>
+              <select
+                className="tron-select"
+                value={accStatus}
+                onChange={(e) => setAccStatus(e.target.value)}
+              >
                 <option value="pending">⏳ Pendientes</option>
                 <option value="active">✅ Activos</option>
                 <option value="rejected">⛔ Rechazados</option>
                 <option value="all">🧩 Todos</option>
               </select>
 
-              <select className="tron-select" value={accType} onChange={(e) => setAccType(e.target.value)}>
+              <select
+                className="tron-select"
+                value={accType}
+                onChange={(e) => setAccType(e.target.value)}
+              >
                 <option value="all">🧩 Tipo: Todos</option>
                 <option value="user">🧏‍♀️ Usuario</option>
                 <option value="interpreter">🧑‍💼 Intérprete</option>
@@ -248,25 +277,63 @@ export default function ManagerDashboard() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-lg">{u.fullName}</div>
+
                       <div className="text-sm text-white/70 mt-1">
-                        {u.profileType === "interpreter" ? "🧑‍💼 Intérprete" : "🧏‍♀️ Usuario"} • 🪪 <b>{u.rut}</b>
+                        {u.profileType === "interpreter" ? "🧑‍💼 Intérprete" : "🧏‍♀️ Usuario"} • 🪪{" "}
+                        <b>{u.rut}</b>
                       </div>
+
                       <div className="text-xs text-white/55 mt-1">📧 {u.email}</div>
+
+                      {u.profileType === "interpreter" && u.interpreterProfile && (
+                        <div className="mt-3 tron-card p-3">
+                          <div className="text-sm font-semibold">🧑‍💼 Datos Intérprete</div>
+
+                          <div className="text-xs text-white/70 mt-2">
+                            📜 Certificación: <b>{u.interpreterProfile.certification || "—"}</b>
+                          </div>
+
+                          <div className="text-xs text-white/70 mt-1">
+                            🕒 Años experiencia: <b>{u.interpreterProfile.years ?? 0}</b>
+                          </div>
+
+                          <div className="text-xs text-white/70 mt-1">
+                            🧩 Especialidad: <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
+                          </div>
+
+                          {u.interpreterProfile.note && (
+                            <div className="text-xs text-white/60 mt-1">
+                              📝 Nota: {u.interpreterProfile.note}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+
                     <Chip>{statusUserLabel(u.status)}</Chip>
                   </div>
 
                   {u.status === "pending" ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button className="tron-btn tron-primary font-semibold py-3" onClick={() => setAccountStatus(u.id, "active")}>
+                      <button
+                        className="tron-btn tron-primary font-semibold py-3"
+                        onClick={() => setAccountStatus(u.id, "active")}
+                      >
                         ✅ Aprobar
                       </button>
-                      <button className="tron-btn font-semibold py-3" onClick={() => setAccountStatus(u.id, "rejected")}>
+
+                      <button
+                        className="tron-btn font-semibold py-3"
+                        onClick={() => setAccountStatus(u.id, "rejected")}
+                      >
                         ⛔ Rechazar
                       </button>
                     </div>
                   ) : (
-                    <button className="tron-btn tron-muted w-full font-semibold py-3 mt-3" onClick={() => setAccountStatus(u.id, "pending")}>
+                    <button
+                      className="tron-btn tron-muted w-full font-semibold py-3 mt-3"
+                      onClick={() => setAccountStatus(u.id, "pending")}
+                    >
                       ↩️ Volver a Pendiente
                     </button>
                   )}
@@ -282,7 +349,11 @@ export default function ManagerDashboard() {
         <div className="grid gap-3">
           <div className="tron-card p-5">
             <div className="grid md:grid-cols-3 gap-2">
-              <select className="tron-select" value={svcStatus} onChange={(e) => setSvcStatus(e.target.value)}>
+              <select
+                className="tron-select"
+                value={svcStatus}
+                onChange={(e) => setSvcStatus(e.target.value)}
+              >
                 <option value="all">🧩 Estado: Todos</option>
                 <option value="created">🧾 Creado</option>
                 <option value="matched">🤝 Conectado</option>
@@ -292,7 +363,11 @@ export default function ManagerDashboard() {
                 <option value="rated">⭐ Evaluado</option>
               </select>
 
-              <select className="tron-select" value={svcMode} onChange={(e) => setSvcMode(e.target.value)}>
+              <select
+                className="tron-select"
+                value={svcMode}
+                onChange={(e) => setSvcMode(e.target.value)}
+              >
                 <option value="all">🧩 Modo: Todos</option>
                 <option value="now">⚡ Ahora</option>
                 <option value="schedule">📅 Agenda</option>
@@ -327,13 +402,16 @@ export default function ManagerDashboard() {
                       <div className="font-semibold">
                         {statusServiceLabel(s.status)} • {modeLabel(s.mode)}
                       </div>
+
                       <div className="text-xs text-white/60 mt-1">
                         Cliente: <b>{s.clientName || "—"}</b> • 💳 {moneyCLP(s.amountCLP)}
                       </div>
+
                       <div className="text-xs text-white/55 mt-1">
                         Intérprete: <b>{s.interpreterName || "—"}</b> • ID {String(s.id).slice(0, 6)}…
                       </div>
                     </div>
+
                     <Chip>{s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}</Chip>
                   </div>
                 </button>
@@ -362,7 +440,9 @@ export default function ManagerDashboard() {
                     <div className="font-semibold">🎥 Sala (demo)</div>
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold mt-3"
-                      onClick={() => window.open(`https://meet.jit.si/InterpreteYa-${selectedService.id}`, "_blank")}
+                      onClick={() =>
+                        window.open(`https://meet.jit.si/InterpreteYa-${selectedService.id}`, "_blank")
+                      }
                     >
                       Abrir videollamada
                     </button>
@@ -374,21 +454,37 @@ export default function ManagerDashboard() {
                 <div className="mt-4 grid md:grid-cols-3 gap-2">
                   <button
                     className="tron-btn tron-muted font-semibold py-3"
-                    onClick={() => setServicePatch(selectedService.id, { status: "finished", finishedAt: Date.now() })}
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "finished",
+                        finishedAt: Date.now(),
+                      })
+                    }
                   >
                     🏁 Marcar Finalizado
                   </button>
 
                   <button
                     className="tron-btn tron-primary font-semibold py-3"
-                    onClick={() => setServicePatch(selectedService.id, { status: "paid", paidAt: Date.now() })}
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "paid",
+                        paidAt: Date.now(),
+                      })
+                    }
                   >
                     💳 Marcar Pagado
                   </button>
 
                   <button
                     className="tron-btn font-semibold py-3"
-                    onClick={() => setServicePatch(selectedService.id, { status: "rated", ratedAt: Date.now(), rating: 5 })}
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "rated",
+                        ratedAt: Date.now(),
+                        rating: 5,
+                      })
+                    }
                   >
                     ⭐ Marcar Evaluado
                   </button>
