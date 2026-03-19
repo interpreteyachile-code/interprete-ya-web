@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listServices, updateService } from "../data/servicesStore";
+import { getInterpreterRating } from "../data/ratingsStore";
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -86,6 +87,14 @@ export default function InterpreterDashboard() {
         s.status === "rated"
     );
   }, [mine]);
+
+  const myRating = useMemo(() => {
+    if (!user?.id) {
+      return { avg: 0, total: 0 };
+    }
+
+    return getInterpreterRating(user.id);
+  }, [user?.id, tick]);
 
   if (!user) {
     return (
@@ -219,7 +228,6 @@ export default function InterpreterDashboard() {
 
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="tron-card p-6">
         <div className="text-2xl font-semibold h-title">🧑‍💼 Panel Intérprete</div>
         <div className="text-white/70 mt-2">
@@ -230,6 +238,7 @@ export default function InterpreterDashboard() {
           <Chip>📥 Disponibles: {available.length}</Chip>
           <Chip>🤝 Activos: {activeMine.length}</Chip>
           <Chip>🏁 Finalizados: {finishedMine.length}</Chip>
+          <Chip>⭐ Rating: {myRating.avg} ({myRating.total})</Chip>
         </div>
 
         <div className="mt-4 grid md:grid-cols-2 gap-3">
@@ -249,7 +258,6 @@ export default function InterpreterDashboard() {
         </div>
       </div>
 
-      {/* DISPONIBLES */}
       <div className="grid gap-3">
         <div className="tron-card p-5">
           <div className="text-xl font-semibold">📥 Solicitudes disponibles</div>
@@ -271,7 +279,6 @@ export default function InterpreterDashboard() {
         )}
       </div>
 
-      {/* MIS SERVICIOS */}
       <div className="grid gap-3">
         <div className="tron-card p-5">
           <div className="text-xl font-semibold">🤝 Mis servicios</div>
