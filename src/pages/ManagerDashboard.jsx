@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listUsers, updateUserStatus } from "../data/demoStore";
 import { listServices, updateService } from "../data/servicesStore";
@@ -17,12 +18,16 @@ function moneyCLP(n) {
 
 function Modal({ open, onClose, children }) {
   if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <div className="absolute inset-0 grid place-items-center p-4">
         <div className="w-full max-w-3xl tron-card p-6 relative">
-          <button className="tron-btn px-4 py-2 absolute right-4 top-4" onClick={onClose}>
+          <button
+            className="tron-btn px-4 py-2 absolute right-4 top-4"
+            onClick={onClose}
+          >
             ✖
           </button>
           {children}
@@ -32,43 +37,54 @@ function Modal({ open, onClose, children }) {
   );
 }
 
-function statusUserLabel(s) {
-  return s === "pending" ? "⏳ Pendiente" : s === "active" ? "✅ Activo" : "⛔ Rechazado";
+function statusUserLabel(status) {
+  return status === "pending"
+    ? "⏳ Pendiente"
+    : status === "active"
+    ? "✅ Activo"
+    : "⛔ Rechazado";
 }
 
-function statusServiceLabel(s) {
-  return s === "created"
+function statusServiceLabel(status) {
+  return status === "created"
     ? "🧾 Creado"
-    : s === "matched"
+    : status === "matched"
     ? "🤝 Conectado"
-    : s === "started"
+    : status === "started"
     ? "🔳 En curso"
-    : s === "finished"
+    : status === "finished"
     ? "🏁 Finalizado"
-    : s === "paid"
+    : status === "paid"
     ? "💳 Pagado"
-    : s === "rated"
+    : status === "rated"
     ? "⭐ Evaluado"
+    : status === "cancelled"
+    ? "⛔ Cancelado"
     : "—";
 }
 
-function modeLabel(m) {
-  return m === "video" ? "🎥 Video" : m === "schedule" ? "📅 Agenda" : "⚡ Ahora";
+function modeLabel(mode) {
+  return mode === "video"
+    ? "🎥 Video"
+    : mode === "schedule"
+    ? "📅 Agenda"
+    : "⚡ Ahora";
 }
 
-function specialtyLabel(s) {
-  return s === "salud"
+function specialtyLabel(specialty) {
+  return specialty === "salud"
     ? "🏥 Salud"
-    : s === "educacion"
+    : specialty === "educacion"
     ? "🏫 Educación"
-    : s === "legal"
+    : specialty === "legal"
     ? "⚖️ Legal"
-    : s === "empresa"
+    : specialty === "empresa"
     ? "🏢 Empresa"
     : "🧩 General";
 }
 
 export default function ManagerDashboard() {
+  const nav = useNavigate();
   const { user } = useAuth();
 
   const [tick, setTick] = useState(0);
@@ -76,31 +92,32 @@ export default function ManagerDashboard() {
   const [q, setQ] = useState("");
 
   // filtros cuentas
-  const [accStatus, setAccStatus] = useState("pending"); // pending|active|rejected|all
-  const [accType, setAccType] = useState("all"); // all|user|interpreter
+  const [accStatus, setAccStatus] = useState("pending");
+  const [accType, setAccType] = useState("all");
 
   // filtros servicios
-  const [svcStatus, setSvcStatus] = useState("all"); // all|created|matched|started|finished|paid|rated
-  const [svcMode, setSvcMode] = useState("all"); // all|now|schedule|video
+  const [svcStatus, setSvcStatus] = useState("all");
+  const [svcMode, setSvcMode] = useState("all");
 
-  // modal
+  // modal servicio
   const [selectedService, setSelectedService] = useState(null);
 
   const isLogged = !!user;
   const isManager = user?.role === "manager";
 
-  // cuentas (no managers)
   const allClients = useMemo(() => {
     return listUsers().filter((u) => u.role !== "manager");
   }, [tick]);
 
   const accounts = useMemo(() => {
     const query = (q || "").trim().toLowerCase();
+
     return allClients
       .filter((u) => (accStatus === "all" ? true : u.status === accStatus))
       .filter((u) => (accType === "all" ? true : u.profileType === accType))
       .filter((u) => {
         if (!query) return true;
+
         return (
           (u.fullName || "").toLowerCase().includes(query) ||
           (u.rut || "").toLowerCase().includes(query) ||
@@ -111,24 +128,26 @@ export default function ManagerDashboard() {
   }, [allClients, q, accStatus, accType]);
 
   const accCounts = useMemo(() => {
-    const pending = allClients.filter((u) => u.status === "pending").length;
-    const active = allClients.filter((u) => u.status === "active").length;
-    const rejected = allClients.filter((u) => u.status === "rejected").length;
-    return { pending, active, rejected };
+    return {
+      pending: allClients.filter((u) => u.status === "pending").length,
+      active: allClients.filter((u) => u.status === "active").length,
+      rejected: allClients.filter((u) => u.status === "rejected").length,
+    };
   }, [allClients]);
 
-  // servicios
   const allServices = useMemo(() => {
     return [...listServices()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [tick]);
 
   const services = useMemo(() => {
     const query = (q || "").trim().toLowerCase();
+
     return allServices
       .filter((s) => (svcStatus === "all" ? true : s.status === svcStatus))
       .filter((s) => (svcMode === "all" ? true : s.mode === svcMode))
       .filter((s) => {
         if (!query) return true;
+
         return (
           (s.clientName || "").toLowerCase().includes(query) ||
           (s.interpreterName || "").toLowerCase().includes(query) ||
@@ -138,7 +157,8 @@ export default function ManagerDashboard() {
   }, [allServices, q, svcStatus, svcMode]);
 
   const svcCounts = useMemo(() => {
-    const by = (st) => allServices.filter((s) => s.status === st).length;
+    const by = (status) => allServices.filter((s) => s.status === status).length;
+
     return {
       created: by("created"),
       matched: by("matched"),
@@ -150,11 +170,19 @@ export default function ManagerDashboard() {
   }, [allServices]);
 
   if (!isLogged) {
-    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Debes iniciar sesión.</div>;
+    return (
+      <div className="tron-card p-6 max-w-xl mx-auto">
+        🔒 Debes iniciar sesión.
+      </div>
+    );
   }
 
   if (!isManager) {
-    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Solo gerente.</div>;
+    return (
+      <div className="tron-card p-6 max-w-xl mx-auto">
+        🔒 Solo gerente.
+      </div>
+    );
   }
 
   const setAccountStatus = (id, status) => {
@@ -174,8 +202,13 @@ export default function ManagerDashboard() {
       <div className="tron-card p-6">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-2xl font-semibold h-title">🧑‍💼 Panel Gerente</div>
-            <div className="text-white/70 mt-2">Cuentas + Servicios (demo funcional).</div>
+            <div className="text-2xl font-semibold h-title">
+              🧑‍💼 Panel Gerente
+            </div>
+
+            <div className="text-white/70 mt-2">
+              Cuentas, servicios y pagos del sistema.
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Chip>⏳ Pendientes: {accCounts.pending}</Chip>
@@ -202,7 +235,7 @@ export default function ManagerDashboard() {
 
         <div className="mt-4 glow-line" />
 
-        {/* TABS */}
+        {/* NAVEGACIÓN */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
@@ -216,6 +249,13 @@ export default function ManagerDashboard() {
             onClick={() => setTab("services")}
           >
             🧾 Servicios
+          </button>
+
+          <button
+            className="tron-btn px-4 py-2"
+            onClick={() => nav("/gerente/pagos")}
+          >
+            💳 Ver pagos
           </button>
 
           <div className="flex-1" />
@@ -269,7 +309,9 @@ export default function ManagerDashboard() {
           </div>
 
           {accounts.length === 0 ? (
-            <div className="tron-card p-6 text-white/70">No hay resultados.</div>
+            <div className="tron-card p-6 text-white/70">
+              No hay resultados.
+            </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {accounts.map((u) => (
@@ -279,26 +321,35 @@ export default function ManagerDashboard() {
                       <div className="font-semibold text-lg">{u.fullName}</div>
 
                       <div className="text-sm text-white/70 mt-1">
-                        {u.profileType === "interpreter" ? "🧑‍💼 Intérprete" : "🧏‍♀️ Usuario"} • 🪪{" "}
-                        <b>{u.rut}</b>
+                        {u.profileType === "interpreter"
+                          ? "🧑‍💼 Intérprete"
+                          : "🧏‍♀️ Usuario"}{" "}
+                        • 🪪 <b>{u.rut}</b>
                       </div>
 
-                      <div className="text-xs text-white/55 mt-1">📧 {u.email}</div>
+                      <div className="text-xs text-white/55 mt-1">
+                        📧 {u.email}
+                      </div>
 
                       {u.profileType === "interpreter" && u.interpreterProfile && (
                         <div className="mt-3 tron-card p-3">
-                          <div className="text-sm font-semibold">🧑‍💼 Datos Intérprete</div>
+                          <div className="text-sm font-semibold">
+                            🧑‍💼 Datos Intérprete
+                          </div>
 
                           <div className="text-xs text-white/70 mt-2">
-                            📜 Certificación: <b>{u.interpreterProfile.certification || "—"}</b>
+                            📜 Certificación:{" "}
+                            <b>{u.interpreterProfile.certification || "—"}</b>
                           </div>
 
                           <div className="text-xs text-white/70 mt-1">
-                            🕒 Años experiencia: <b>{u.interpreterProfile.years ?? 0}</b>
+                            🕒 Años experiencia:{" "}
+                            <b>{u.interpreterProfile.years ?? 0}</b>
                           </div>
 
                           <div className="text-xs text-white/70 mt-1">
-                            🧩 Especialidad: <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
+                            🧩 Especialidad:{" "}
+                            <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
                           </div>
 
                           {u.interpreterProfile.note && (
@@ -388,7 +439,9 @@ export default function ManagerDashboard() {
           </div>
 
           {services.length === 0 ? (
-            <div className="tron-card p-6 text-white/70">No hay servicios con esos filtros.</div>
+            <div className="tron-card p-6 text-white/70">
+              No hay servicios con esos filtros.
+            </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {services.map((s) => (
@@ -404,15 +457,23 @@ export default function ManagerDashboard() {
                       </div>
 
                       <div className="text-xs text-white/60 mt-1">
-                        Cliente: <b>{s.clientName || "—"}</b> • 💳 {moneyCLP(s.amountCLP)}
+                        Cliente: <b>{s.clientName || "—"}</b> • 💳{" "}
+                        {moneyCLP(s.amountCLP)}
                       </div>
 
                       <div className="text-xs text-white/55 mt-1">
-                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID {String(s.id).slice(0, 6)}…
+                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID{" "}
+                        {String(s.id).slice(0, 6)}…
                       </div>
                     </div>
 
-                    <Chip>{s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}</Chip>
+                    <Chip>
+                      {s.mode === "video"
+                        ? "🎥"
+                        : s.mode === "schedule"
+                        ? "📅"
+                        : "⚡"}
+                    </Chip>
                   </div>
                 </button>
               ))}
@@ -422,9 +483,13 @@ export default function ManagerDashboard() {
           <Modal open={!!selectedService} onClose={() => setSelectedService(null)}>
             {!selectedService ? null : (
               <div>
-                <div className="text-2xl font-semibold h-title">📌 Servicio</div>
+                <div className="text-2xl font-semibold h-title">
+                  📌 Servicio
+                </div>
+
                 <div className="text-white/70 mt-1">
-                  {statusServiceLabel(selectedService.status)} • {modeLabel(selectedService.mode)}
+                  {statusServiceLabel(selectedService.status)} •{" "}
+                  {modeLabel(selectedService.mode)}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -441,7 +506,10 @@ export default function ManagerDashboard() {
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold mt-3"
                       onClick={() =>
-                        window.open(`https://meet.jit.si/InterpreteYa-${selectedService.id}`, "_blank")
+                        window.open(
+                          `https://meet.jit.si/InterpreteYa-${selectedService.id}`,
+                          "_blank"
+                        )
                       }
                     >
                       Abrir videollamada

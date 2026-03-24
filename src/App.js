@@ -1,28 +1,41 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
+// Layout
 import AppShell from "./app/AppShell";
 
+// Públicas
 import Home from "./pages/Home";
 import Ecosistema from "./pages/Ecosistema";
-import Solicitud from "./pages/Solicitud";
-import Denuncias from "./pages/Denuncias";
-import Cursos from "./pages/Cursos";
 import Alianzas from "./pages/Alianzas";
 import Propuesta from "./pages/Propuesta";
-import VideoRoom from "./pages/VideoRoom";
-import CalificarServicio from "./pages/CalificarServicio";
-import HistorialServicios from "./pages/HistorialServicios";
 import InterpretesDisponibles from "./pages/InterpretesDisponibles";
 import MapaInterpretes from "./pages/MapaInterpretes";
 
+// Auth
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import LoginGerente from "./pages/LoginGerente";
 import Pending from "./pages/Pending";
-import ManagerDashboard from "./pages/ManagerDashboard";
+
+// Flujo servicio
+import Solicitud from "./pages/Solicitud";
+import VideoRoom from "./pages/VideoRoom";
+import CalificarServicio from "./pages/CalificarServicio";
+import HistorialServicios from "./pages/HistorialServicios";
+import Denuncias from "./pages/Denuncias";
+
+// Cursos / pagos
+import Cursos from "./pages/Cursos";
+import MisPagos from "./pages/MisPagos";
+import GestionPagos from "./pages/GestionPagos";
+
+// Dashboards
 import UserDashboard from "./pages/UserDashboard";
 import InterpreterDashboard from "./pages/InterpreterDashboard";
-import LoginGerente from "./pages/LoginGerente";
+import ManagerDashboard from "./pages/ManagerDashboard";
 
+// Auth guard
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 function RedirectByRole() {
@@ -62,7 +75,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          {/* Públicas */}
+          {/* =========================
+              RUTAS PÚBLICAS
+          ========================= */}
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
@@ -70,7 +85,9 @@ function App() {
           <Route path="/interpretes" element={<InterpretesDisponibles />} />
           <Route path="/mapa" element={<MapaInterpretes />} />
 
-          {/* Login / Registro */}
+          {/* =========================
+              AUTH / INGRESO
+          ========================= */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/pending" element={<Pending />} />
@@ -81,7 +98,9 @@ function App() {
           />
           <Route path="/panel" element={<RedirectByRole />} />
 
-          {/* Flujo de servicio protegido */}
+          {/* =========================
+              FLUJO SERVICIO
+          ========================= */}
           <Route
             path="/video/:roomId"
             element={
@@ -107,7 +126,9 @@ function App() {
             }
           />
 
-          {/* Protegidas por rol / perfil */}
+          {/* =========================
+              USUARIO CLIENTE
+          ========================= */}
           <Route
             path="/solicitud"
             element={
@@ -120,6 +141,50 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/usuario"
+            element={
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["user"]}
+                requireStatus="active"
+              >
+                <UserDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pagos"
+            element={
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["user"]}
+                requireStatus="active"
+              >
+                <MisPagos />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =========================
+              INTÉRPRETE
+          ========================= */}
+          <Route
+            path="/interprete"
+            element={
+              <ProtectedRoute
+                allowRoles={["client"]}
+                allowProfileTypes={["interpreter"]}
+                requireStatus="active"
+              >
+                <InterpreterDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =========================
+              COMPARTIDAS / GENERALES
+          ========================= */}
           <Route
             path="/cursos"
             element={
@@ -137,31 +202,9 @@ function App() {
             }
           />
 
-          {/* Dashboards */}
-          <Route
-            path="/usuario"
-            element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["user"]}
-                requireStatus="active"
-              >
-                <UserDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/interprete"
-            element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["interpreter"]}
-                requireStatus="active"
-              >
-                <InterpreterDashboard />
-              </ProtectedRoute>
-            }
-          />
+          {/* =========================
+              GERENTE
+          ========================= */}
           <Route
             path="/gerente"
             element={
@@ -173,8 +216,21 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/gerente/pagos"
+            element={
+              <ProtectedRoute
+                allowRoles={["manager"]}
+                requireStatus="active"
+              >
+                <GestionPagos />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Fallback */}
+          {/* =========================
+              FALLBACK
+          ========================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

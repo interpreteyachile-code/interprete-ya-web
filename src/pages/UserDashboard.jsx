@@ -12,13 +12,13 @@ function moneyCLP(n) {
 }
 
 function statusLabel(status) {
-  return status === "created"
-    ? "🧾 Creado"
-    : status === "matched"
+  return status === "requested"
+    ? "📥 Solicitud enviada"
+    : status === "accepted"
     ? "🤝 Intérprete asignado"
-    : status === "started"
+    : status === "in_progress"
     ? "🔳 En curso"
-    : status === "finished"
+    : status === "done"
     ? "🏁 Finalizado"
     : status === "paid"
     ? "💳 Pagado"
@@ -71,12 +71,10 @@ export default function UserDashboard() {
   const counts = useMemo(() => {
     return {
       total: my.length,
-      created: my.filter((s) => s.status === "created").length,
-      matched: my.filter((s) => s.status === "matched").length,
-      started: my.filter((s) => s.status === "started").length,
-      finished: my.filter((s) => s.status === "finished").length,
-      paid: my.filter((s) => s.status === "paid").length,
-      rated: my.filter((s) => s.status === "rated").length,
+      requested: my.filter((s) => s.status === "requested").length,
+      accepted: my.filter((s) => s.status === "accepted").length,
+      in_progress: my.filter((s) => s.status === "in_progress").length,
+      done: my.filter((s) => s.status === "done").length,
     };
   }, [my]);
 
@@ -110,14 +108,15 @@ export default function UserDashboard() {
         </div>
 
         <div className="mt-4 flex gap-2 flex-wrap">
-          <Chip>📄 Solicitudes: {counts.total}</Chip>
-          <Chip>🧾 Creadas: {counts.created}</Chip>
-          <Chip>🤝 Asignadas: {counts.matched}</Chip>
-          <Chip>🔳 En curso: {counts.started}</Chip>
-          <Chip>🏁 Finalizadas: {counts.finished}</Chip>
+          <Chip>📄 Total: {counts.total}</Chip>
+          <Chip>📥 Solicitadas: {counts.requested}</Chip>
+          <Chip>🤝 Asignadas: {counts.accepted}</Chip>
+          <Chip>🔳 En curso: {counts.in_progress}</Chip>
+          <Chip>🏁 Finalizadas: {counts.done}</Chip>
         </div>
 
-        <div className="mt-4 grid md:grid-cols-3 gap-3">
+        {/* BOTONES */}
+        <div className="mt-4 grid md:grid-cols-4 gap-3">
           <button
             className="tron-btn tron-primary py-3 font-semibold"
             onClick={() => nav("/solicitud")}
@@ -129,14 +128,22 @@ export default function UserDashboard() {
             className="tron-btn py-3 font-semibold"
             onClick={() => nav("/historial")}
           >
-            📜 Ver Historial
+            📜 Historial
           </button>
 
           <button
             className="tron-btn py-3 font-semibold"
             onClick={() => nav("/cursos")}
           >
-            🎓 Cursos LSCh
+            🎓 Cursos
+          </button>
+
+          {/* ✅ NUEVO */}
+          <button
+            className="tron-btn py-3 font-semibold"
+            onClick={() => nav("/pagos")}
+          >
+            💳 Mis pagos
           </button>
         </div>
       </div>
@@ -165,21 +172,12 @@ export default function UserDashboard() {
               </div>
 
               <div className="mt-3 text-sm text-white/75">
-                💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
+                💳 Precio: <b>{moneyCLP(s.priceCLP)}</b>
               </div>
 
               <div className="text-sm text-white/75 mt-1">
-                ⏱️ Duración: <b>{s.durationMin || 30} min</b>
-              </div>
-
-              {s.scheduledAt && (
-                <div className="text-sm text-white/75 mt-1">
-                  📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
-                </div>
-              )}
-
-              <div className="text-sm text-white/75 mt-1">
-                🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
+                🧑‍💼 Intérprete:{" "}
+                <b>{s.interpreterName || "Aún no asignado"}</b>
               </div>
 
               {s.note && (
@@ -189,8 +187,9 @@ export default function UserDashboard() {
               )}
 
               <div className="mt-4 grid gap-2">
+                {/* VIDEO */}
                 {s.mode === "video" &&
-                  (s.status === "matched" || s.status === "started") && (
+                  (s.status === "accepted" || s.status === "in_progress") && (
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold"
                       onClick={() => nav(`/video/${s.id}`)}
@@ -199,7 +198,8 @@ export default function UserDashboard() {
                     </button>
                   )}
 
-                {s.status === "finished" && (
+                {/* CALIFICAR */}
+                {s.status === "done" && (
                   <button
                     className="tron-btn w-full py-3 font-semibold"
                     onClick={() => nav(`/calificar/${s.id}`)}

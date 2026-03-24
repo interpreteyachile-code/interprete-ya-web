@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createService } from "../data/servicesStore";
+import { createPayment } from "../data/paymentsStore";
 import { useAuth } from "../auth/AuthContext";
 
 function moneyCLP(n) {
@@ -31,9 +32,9 @@ export default function Solicitud() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState("now"); // now | schedule | video
-  const [serviceType, setServiceType] = useState("tramite"); // tramite | reunion | entrevista | evento
-  const [zone, setZone] = useState("centro"); // norte | centro | sur
+  const [mode, setMode] = useState("now");
+  const [serviceType, setServiceType] = useState("tramite");
+  const [zone, setZone] = useState("centro");
   const [durationMin, setDurationMin] = useState("30");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -79,7 +80,8 @@ export default function Solicitud() {
     try {
       setSubmitting(true);
 
-      createService({
+      // 1) crear servicio
+      const service = createService({
         clientId: user.id,
         clientName: user.fullName,
         clientRut: user.rut,
@@ -93,7 +95,23 @@ export default function Solicitud() {
         status: "created",
       });
 
-      alert("✅ Solicitud enviada correctamente");
+      // 2) crear pago demo del servicio
+      createPayment({
+        type: "service_request",
+        refId: service.id,
+        userId: user.id,
+        userName: user.fullName,
+        amountCLP,
+        status: "paid",
+        method: "demo",
+        note: "Pago demo de solicitud de intérprete",
+      });
+
+      // 3) opcional: dejar el servicio como pagado si quieres marcarlo altiro
+      // Si prefieres que el gerente lo marque manualmente, borra este bloque.
+      // updateService(service.id, { status: "paid", paidAt: Date.now() });
+
+      alert("✅ Solicitud creada y pago demo registrado");
       nav("/usuario", { replace: true });
     } catch (err) {
       setError("❌ No se pudo crear la solicitud.");
@@ -127,7 +145,6 @@ export default function Solicitud() {
       )}
 
       <div className="tron-card p-5 grid gap-4">
-        {/* MODO */}
         <div>
           <div className="text-sm text-white/70 mb-2">⚡ Modalidad</div>
 
@@ -158,7 +175,6 @@ export default function Solicitud() {
           </div>
         </div>
 
-        {/* TIPO SERVICIO */}
         <div>
           <div className="text-sm text-white/70 mb-1">🧩 Tipo de servicio</div>
 
@@ -174,7 +190,6 @@ export default function Solicitud() {
           </select>
         </div>
 
-        {/* ZONA */}
         <div>
           <div className="text-sm text-white/70 mb-1">📍 Zona</div>
 
@@ -189,7 +204,6 @@ export default function Solicitud() {
           </select>
         </div>
 
-        {/* DURACION */}
         <div>
           <div className="text-sm text-white/70 mb-1">⏱️ Duración estimada</div>
 
@@ -205,7 +219,6 @@ export default function Solicitud() {
           </select>
         </div>
 
-        {/* FECHA / HORA SOLO AGENDA */}
         {mode === "schedule" && (
           <div className="grid md:grid-cols-2 gap-3">
             <div>
@@ -230,7 +243,6 @@ export default function Solicitud() {
           </div>
         )}
 
-        {/* NOTA */}
         <div>
           <div className="text-sm text-white/70 mb-1">📝 Descripción</div>
 
@@ -243,7 +255,6 @@ export default function Solicitud() {
           />
         </div>
 
-        {/* RESUMEN */}
         <div className="tron-card p-4">
           <div className="font-semibold">📌 Resumen</div>
 
@@ -291,6 +302,10 @@ export default function Solicitud() {
           <div className="text-lg font-semibold mt-3">
             💳 Precio estimado: {moneyCLP(amountCLP)}
           </div>
+
+          <div className="text-xs text-white/55 mt-2">
+            El pago se registrará en modo demo.
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -312,7 +327,7 @@ export default function Solicitud() {
             onClick={submit}
             disabled={submitting}
           >
-            {submitting ? "⏳ Enviando..." : "🚀 Crear solicitud"}
+            {submitting ? "⏳ Enviando..." : "💳 Pagar y crear solicitud"}
           </button>
         </div>
       </div>
