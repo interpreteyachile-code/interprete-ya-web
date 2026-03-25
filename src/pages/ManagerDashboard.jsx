@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listUsers, updateUserStatus } from "../data/demoStore";
 import { listServices, updateService } from "../data/servicesStore";
+import { getPaymentsByRefId } from "../data/paymentsStore";
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -88,25 +89,29 @@ export default function ManagerDashboard() {
   const { user } = useAuth();
 
   const [tick, setTick] = useState(0);
-  const [tab, setTab] = useState("accounts"); // accounts | services
+  const [tab, setTab] = useState("accounts");
   const [q, setQ] = useState("");
 
-  // filtros cuentas
   const [accStatus, setAccStatus] = useState("pending");
   const [accType, setAccType] = useState("all");
 
-  // filtros servicios
   const [svcStatus, setSvcStatus] = useState("all");
   const [svcMode, setSvcMode] = useState("all");
 
-  // modal servicio
   const [selectedService, setSelectedService] = useState(null);
+  const [selectedInterpreterId, setSelectedInterpreterId] = useState("");
 
   const isLogged = !!user;
   const isManager = user?.role === "manager";
 
   const allClients = useMemo(() => {
     return listUsers().filter((u) => u.role !== "manager");
+  }, [tick]);
+
+  const activeInterpreters = useMemo(() => {
+    return listUsers().filter(
+      (u) => u.profileType === "interpreter" && u.status === "active"
+    );
   }, [tick]);
 
   const accounts = useMemo(() => {
@@ -169,6 +174,18 @@ export default function ManagerDashboard() {
     };
   }, [allServices]);
 
+  const selectedServicePayments = useMemo(() => {
+    if (!selectedService?.id) return [];
+    return getPaymentsByRefId(selectedService.id);
+  }, [selectedService]);
+
+  const selectedServicePayment = useMemo(() => {
+    if (!selectedServicePayments.length) return null;
+    return [...selectedServicePayments].sort(
+      (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+    )[0];
+  }, [selectedServicePayments]);
+
   if (!isLogged) {
     return (
       <div className="tron-card p-6 max-w-xl mx-auto">
@@ -196,9 +213,40 @@ export default function ManagerDashboard() {
     setTick((x) => x + 1);
   };
 
+  const openService = (service) => {
+    setSelectedService(service);
+    setSelectedInterpreterId(service?.interpreterId || "");
+  };
+
+  const assignInterpreter = () => {
+    if (!selectedService) return;
+    if (!selectedInterpreterId) {
+      alert("Selecciona un intérprete.");
+      return;
+    }
+
+    const selectedInterpreter = activeInterpreters.find(
+      (i) => i.id === selectedInterpreterId
+    );
+
+    if (!selectedInterpreter) {
+      alert("No se encontró el intérprete seleccionado.");
+      return;
+    }
+
+    const next = updateService(selectedService.id, {
+      interpreterId: selectedInterpreter.id,
+      interpreterName: selectedInterpreter.fullName,
+      status: "matched",
+    });
+
+    setSelectedService(next);
+    setTick((x) => x + 1);
+    alert("✅ Intérprete asignado correctamente");
+  };
+
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="tron-card p-6">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -235,7 +283,6 @@ export default function ManagerDashboard() {
 
         <div className="mt-4 glow-line" />
 
-        {/* NAVEGACIÓN */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
@@ -269,7 +316,6 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* CUENTAS */}
       {tab === "accounts" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
@@ -354,7 +400,7 @@ export default function ManagerDashboard() {
 
                           {u.interpreterProfile.note && (
                             <div className="text-xs text-white/60 mt-1">
-                              📝 Nota: {u.interpreterProfile.note}
+                              📝 {u.interpreterProfile.note}
                             </div>
                           )}
                         </div>
@@ -395,7 +441,6 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {/* SERVICIOS */}
       {tab === "services" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
@@ -448,7 +493,7 @@ export default function ManagerDashboard() {
                 <button
                   key={s.id}
                   className="tron-btn w-full text-left"
-                  onClick={() => setSelectedService(s)}
+                  onClick={() => openService(s)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -498,6 +543,76 @@ export default function ManagerDashboard() {
                   <Chip>💳 {moneyCLP(selectedService.amountCLP)}</Chip>
                   <Chip>🔳 Inicio: {selectedService.startCode}</Chip>
                   <Chip>🔳 Fin: {selectedService.endCode}</Chip>
+                </div>
+
+                {selectedServicePayment ? (
+                  <div className="mt-4 tron-card p-4">
+                    <div className="font-semibold">💳 Pago asociado</div>
+
+                    <div className="text-sm text-white/75 mt-2">
+                      Estado: <b>{selectedServicePayment.status || "—"}</b>
+                    </div>
+
+                    <div className="text-sm text-white/75 mt-1">
+                      Método: <b>{selectedServicePayment.method || "demo"}</b>
+                    </div>
+
+                    <div className="text-sm text-white/75 mt-1">
+                      Usuario: <b>{selectedServicePayment.userName || "—"}</b>
+                    </div>
+
+                    <div className="text-sm text-white/75 mt-1">
+                      Monto: <b>{moneyCLP(selectedServicePayment.amountCLP)}</b>
+                    </div>
+
+                    <div className="text-sm text-white/65 mt-1">
+                      Fecha:{" "}
+                      {new Date(selectedServicePayment.createdAt).toLocaleString(
+                        "es-CL"
+                      )}
+                    </div>
+
+                    {selectedServicePayment.note && (
+                      <div className="text-sm text-white/60 mt-2">
+                        📝 {selectedServicePayment.note}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 tron-card p-4 text-white/70">
+                    ⚠️ Este servicio aún no tiene pago asociado.
+                  </div>
+                )}
+
+                {/* ASIGNACIÓN MANUAL */}
+                <div className="mt-4 tron-card p-5">
+                  <div className="font-semibold">🧑‍💼 Asignar intérprete</div>
+
+                  <div className="mt-3 grid md:grid-cols-[1fr_auto] gap-2">
+                    <select
+                      className="tron-select"
+                      value={selectedInterpreterId}
+                      onChange={(e) => setSelectedInterpreterId(e.target.value)}
+                    >
+                      <option value="">Selecciona intérprete activo</option>
+                      {activeInterpreters.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.fullName}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      className="tron-btn tron-primary px-4 py-3 font-semibold"
+                      onClick={assignInterpreter}
+                    >
+                      ✅ Asignar
+                    </button>
+                  </div>
+
+                  <div className="text-xs text-white/55 mt-2">
+                    Al asignar, el servicio pasa a estado <b>matched</b>.
+                  </div>
                 </div>
 
                 {selectedService.mode === "video" && (

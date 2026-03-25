@@ -12,102 +12,160 @@ function save(items) {
   localStorage.setItem(KEY, JSON.stringify(items));
 }
 
-// ✅ Hash demo (huella simple). No es legal/cripto, pero sirve para prototipo.
-function makeHash(obj) {
-  const str = JSON.stringify(obj);
-  let h = 2166136261; // FNV-1a base
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return ("00000000" + (h >>> 0).toString(16)).slice(-8).toUpperCase();
-}
-
-// ✅ Normaliza para evitar undefined
-function cleanText(v) {
+function clean(v) {
   return (v || "").toString().trim();
 }
+
+function makeHash() {
+  return (
+    "REP-" +
+    Math.random().toString(36).slice(2, 8).toUpperCase() +
+    "-" +
+    Date.now().toString().slice(-6)
+  );
+}
+
+const VALID_STATUS = ["pending", "accepted", "rejected", "resolved"];
+const VALID_CATEGORY = ["barrera", "discriminacion", "servicio", "otro"];
+const VALID_ZONE = ["all", "norte", "centro", "sur"];
 
 export function listReports() {
   return load();
 }
 
+export function getReport(reportId) {
+  return load().find((x) => x.id === reportId) || null;
+}
+
 export function createReport(payload) {
   const items = load();
 
-  const createdAt = Date.now();
+  const category = VALID_CATEGORY.includes(payload.category)
+    ? payload.category
+    : "otro";
+
+  const zone = VALID_ZONE.includes(payload.zone)
+    ? payload.zone
+    : "all";
+
+  const status = VALID_STATUS.includes(payload.status)
+    ? payload.status
+    : "pending";
 
   const report = {
     id: crypto.randomUUID(),
-    createdAt,
+    createdAt: Date.now(),
+    updatedAt: null,
 
-    createdById: payload.createdById,
-    createdByName: cleanText(payload.createdByName) || "Usuario",
-    createdByRut: cleanText(payload.createdByRut),
+    // creador
+    createdById: payload.createdById || null,
+    createdByName: clean(payload.createdByName) || "Usuario",
+    createdByRut: clean(payload.createdByRut),
 
-    title: cleanText(payload.title) || "Reporte",
-    category: payload.category || "barrera", // barrera | discriminacion | servicio | otro
-    zone: payload.zone || "all", // norte | centro | sur | all
-    locationText: cleanText(payload.locationText),
+    // contenido
+    title: clean(payload.title) || "Reporte",
+    category,
+    zone,
+    locationText: clean(payload.locationText),
+    description: clean(payload.description),
+    evidenceText: clean(payload.evidenceText),
 
-    description: cleanText(payload.description),
-    evidenceText: cleanText(payload.evidenceText),
+    // imágenes / evidencia
+    evidenceImages: Array.isArray(payload.evidenceImages)
+      ? payload.evidenceImages
+      : [],
 
-    // ✅ NUEVO: fotos evidencia (base64)
-    evidenceImages: Array.isArray(payload.evidenceImages) ? payload.evidenceImages : [],
+    // gestión
+    status,
+    managerNote: clean(payload.managerNote),
 
-    status: "pending", // pending | accepted | rejected | resolved
-    managerNote: "",
-
-    hash: makeHash({
-      createdAt,
-      createdById: payload.createdById,
-      title: cleanText(payload.title) || "Reporte",
-      category: payload.category || "barrera",
-      zone: payload.zone || "all",
-      locationText: cleanText(payload.locationText),
-      description: cleanText(payload.description),
-      evidenceText: cleanText(payload.evidenceText),
-      // no metemos images al hash (pesado)
-    }),
+    // hash demo
+    hash: clean(payload.hash) || makeHash(),
   };
 
-  if (!report.createdById) throw new Error("Falta createdById");
-  if (!report.description) throw new Error("Falta descripción");
+  if (!report.createdById) {
+    throw new Error("Falta createdById");
+  }
 
-  items.push(report);
+  if (!report.description) {
+    throw new Error("Falta descripción");
+  }
+
+  items.unshift(report);
   save(items);
-
   return report;
 }
 
 export function updateReport(id, patch) {
   const items = load();
   const idx = items.findIndex((x) => x.id === id);
-  if (idx === -1) return null;
+
+  if (idx === -1) {
+    throw new Error("No existe");
+  }
+
+  if (patch.status && !VALID_STATUS.includes(patch.status)) {
+    throw new Error("Estado inválido");
+  }
+
+  if (patch.category && !VALID_CATEGORY.includes(patch.category)) {
+    throw new Error("Categoría inválida");
+  }
+
+  if (patch.zone && !VALID_ZONE.includes(patch.zone)) {
+    throw new Error("Zona inválida");
+  }
 
   const current = items[idx];
-  const allowed = {};
 
-  if (patch.status) {
-    const s = patch.status;
-    if (!["pending", "accepted", "rejected", "resolved"].includes(s)) {
-      throw new Error("Estado inválido");
-    }
-    allowed.status = s;
-  }
+  const next = {
+    ...current,
+    ...patch,
 
-  if (typeof patch.managerNote === "string") {
-    allowed.managerNote = patch.managerNote;
-  }
+    title: patch.title !== undefined ? clean(patch.title) : current.title,
+    createdByName:
+      patch.createdByName !== undefined
+        ? clean(patch.createdByName)
+        : current.createdByName,
+    createdByRut:
+      patch.createdByRut !== undefined
+        ? clean(patch.createdByRut)
+        : current.createdByRut,
+    locationText:
+      patch.locationText !== undefined
+        ? clean(patch.locationText)
+        : current.locationText,
+    description:
+      patch.description !== undefined
+        ? clean(patch.description)
+        : current.description,
+    evidenceText:
+      patch.evidenceText !== undefined
+        ? clean(patch.evidenceText)
+        : current.evidenceText,
+    managerNote:
+      patch.managerNote !== undefined
+        ? clean(patch.managerNote)
+        : current.managerNote,
+    hash: patch.hash !== undefined ? clean(patch.hash) : current.hash,
 
-  // ✅ NUEVO: actualizar imágenes si se envía
-  if (Array.isArray(patch.evidenceImages)) {
-    allowed.evidenceImages = patch.evidenceImages;
-  }
+    evidenceImages:
+      patch.evidenceImages !== undefined
+        ? Array.isArray(patch.evidenceImages)
+          ? patch.evidenceImages
+          : []
+        : current.evidenceImages,
 
-  items[idx] = { ...current, ...allowed, updatedAt: Date.now() };
+    updatedAt: Date.now(),
+  };
+
+  items[idx] = next;
   save(items);
-  return items[idx];
+  return next;
 }
 
+export function deleteReport(id) {
+  const items = load().filter((x) => x.id !== id);
+  save(items);
+  return true;
+}

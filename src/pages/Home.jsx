@@ -107,7 +107,7 @@ export default function Home() {
             <div className="w-28 h-28 rounded-3xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center text-5xl">
               🤟
             </div>
-            <div className="text-xs text-white/55 mt-3 text-center">Logo</div>
+            <div className="text-xs text-white/55 mt-3 text-center">LSCH ❤️</div>
           </div>
         </div>
 

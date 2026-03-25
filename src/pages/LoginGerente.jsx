@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+
+function isEmailValid(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || "").trim());
+}
 
 export default function LoginGerente() {
   const nav = useNavigate();
@@ -8,42 +12,57 @@ export default function LoginGerente() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const emailOk = useMemo(() => isEmailValid(email), [email]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      return setError("⚠️ Escribe tu correo de gerente.");
+    if (!emailOk) {
+      setError("⚠️ Correo inválido.");
+      return;
     }
 
     if (!password) {
-      return setError("⚠️ Escribe tu contraseña.");
+      setError("⚠️ Escribe tu contraseña.");
+      return;
     }
 
     try {
       setLoading(true);
-      await loginManager({ email: cleanEmail, password });
+
+      await loginManager({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
       nav("/panel", { replace: true });
     } catch (err) {
-      const msg =
-        err?.code === "NO_EXISTS"
-          ? "❌ No existe una cuenta gerente con ese correo."
-          : err?.code === "BAD_PASSWORD"
-          ? "❌ Contraseña incorrecta."
-          : err?.code === "NOT_MANAGER"
-          ? "⛔ Esta cuenta no tiene permisos de gerente."
-          : err?.code === "NOT_ACTIVE"
-          ? "⏳ La cuenta gerente no está activa."
-          : "❌ No se pudo ingresar como gerente.";
+      if (err?.code === "NO_EXISTS") {
+        setError("❌ No existe un gerente con ese correo.");
+        return;
+      }
 
-      setError(msg);
+      if (err?.code === "BAD_PASSWORD") {
+        setError("❌ Contraseña incorrecta.");
+        return;
+      }
+
+      if (err?.code === "NOT_MANAGER") {
+        setError("⛔ Esta cuenta no pertenece a gerente.");
+        return;
+      }
+
+      if (err?.code === "NOT_ACTIVE") {
+        setError("⛔ La cuenta gerente no está activa.");
+        return;
+      }
+
+      setError("❌ No se pudo ingresar como gerente.");
     } finally {
       setLoading(false);
     }
@@ -52,51 +71,46 @@ export default function LoginGerente() {
   return (
     <div className="min-h-[70vh] grid place-items-center px-4">
       <div className="w-full max-w-md tron-card p-6">
-        {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-2xl font-semibold h-title">
-              🛡️ Ingreso Gerente
+              🧑‍💼 Login Gerente
             </div>
             <div className="text-sm text-white/70 mt-1">
-              Acceso administrativo seguro
+              Acceso gerente con correo y contraseña
             </div>
           </div>
 
           <div className="w-12 h-12 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center">
-            👔
+            🛡️
           </div>
         </div>
 
         <div className="mt-4 glow-line" />
 
-        {/* Error */}
         {error && (
           <div className="mt-4 tron-card p-3 text-sm text-white/85">
             {error}
           </div>
         )}
 
-        {/* Form */}
         <form className="mt-4 grid gap-3" onSubmit={onSubmit}>
           <div>
             <label className="text-sm text-white/70">Correo gerente</label>
             <input
-              type="email"
               value={email}
               onChange={(e) => {
                 setError("");
                 setEmail(e.target.value);
               }}
-              autoComplete="username"
-              placeholder="gerente@interpreteya.cl"
               className="tron-input mt-1 w-full"
+              placeholder="gerente@interpreteya.cl"
+              autoComplete="username"
             />
           </div>
 
           <div>
             <label className="text-sm text-white/70">Contraseña</label>
-
             <div className="mt-1 flex gap-2">
               <input
                 type={showPass ? "text" : "password"}
@@ -105,15 +119,15 @@ export default function LoginGerente() {
                   setError("");
                   setPassword(e.target.value);
                 }}
-                autoComplete="current-password"
-                placeholder="••••••••••••"
                 className="tron-input w-full"
+                placeholder="••••••••••••"
+                autoComplete="current-password"
               />
+
               <button
                 type="button"
                 className="tron-btn px-4"
                 onClick={() => setShowPass((s) => !s)}
-                title={showPass ? "Ocultar" : "Mostrar"}
               >
                 {showPass ? "🙈" : "👁️"}
               </button>
@@ -123,36 +137,34 @@ export default function LoginGerente() {
           <button
             className={
               "tron-btn tron-primary w-full py-3 font-semibold " +
-              (!email.trim() || !password || loading
-                ? "opacity-70 cursor-not-allowed"
-                : "")
+              (!emailOk || !password || loading ? "opacity-70 cursor-not-allowed" : "")
             }
-            disabled={!email.trim() || !password || loading}
+            disabled={!emailOk || !password || loading}
           >
-            {loading ? "⏳ Ingresando..." : "✅ Entrar como gerente"}
+            {loading ? "⏳ Ingresando..." : "✅ Ingresar como gerente"}
           </button>
 
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               className="tron-btn tron-muted py-2"
-              onClick={() => nav("/")}
+              onClick={() => nav("/login")}
             >
-              🏠 Inicio
+              🔐 Usuario
             </button>
 
             <button
               type="button"
               className="tron-btn py-2"
-              onClick={() => nav("/login")}
+              onClick={() => nav("/")}
             >
-              👤 Login usuario
+              🏠 Inicio
             </button>
           </div>
         </form>
 
         <div className="text-xs text-white/55 mt-4">
-          🔐 Acceso solo para cuentas con rol gerente activas.
+          🧑‍💼 Solo cuentas gerente pueden entrar aquí.
         </div>
       </div>
     </div>

@@ -193,14 +193,17 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/denuncias"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <Denuncias />
-              </ProtectedRoute>
-            }
-          />
+       <Route
+  path="/denuncias"
+  element={
+    <ProtectedRoute
+      allowRoles={["manager", "client"]}
+      requireStatus="active"
+    >
+      <Denuncias />
+    </ProtectedRoute>
+  }
+/>
 
           {/* =========================
               GERENTE

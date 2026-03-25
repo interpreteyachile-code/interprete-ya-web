@@ -80,8 +80,9 @@ export default function HistorialServicios() {
   const counts = useMemo(() => {
     return {
       total: history.length,
-      finished: history.filter((s) => s.status === "finished").length,
       paid: history.filter((s) => s.status === "paid").length,
+      started: history.filter((s) => s.status === "started").length,
+      finished: history.filter((s) => s.status === "finished").length,
       rated: history.filter((s) => s.status === "rated").length,
       cancelled: history.filter((s) => s.status === "cancelled").length,
     };
@@ -103,33 +104,43 @@ export default function HistorialServicios() {
     );
   }
 
+  const goBack = () => {
+    if (user.role === "manager") {
+      nav("/gerente");
+      return;
+    }
+
+    if (user.profileType === "interpreter") {
+      nav("/interprete");
+      return;
+    }
+
+    nav("/usuario");
+  };
+
   return (
     <div className="grid gap-4">
       {/* HEADER */}
       <div className="tron-card p-6">
-        <div className="text-2xl font-semibold h-title">📜 Historial de Servicios</div>
+        <div className="text-2xl font-semibold h-title">
+          📜 Historial de Servicios
+        </div>
 
         <div className="text-white/70 mt-2">
-          Revisa servicios anteriores, su estado y detalles.
+          Revisa tus servicios anteriores y su estado.
         </div>
 
         <div className="mt-4 flex gap-2 flex-wrap">
           <Chip>📄 Total: {counts.total}</Chip>
-          <Chip>🏁 Finalizados: {counts.finished}</Chip>
           <Chip>💳 Pagados: {counts.paid}</Chip>
+          <Chip>🔳 En curso: {counts.started}</Chip>
+          <Chip>🏁 Finalizados: {counts.finished}</Chip>
           <Chip>⭐ Evaluados: {counts.rated}</Chip>
           <Chip>⛔ Cancelados: {counts.cancelled}</Chip>
         </div>
 
         <div className="mt-4">
-          <button
-            className="tron-btn tron-muted py-3"
-            onClick={() => {
-              if (user.role === "manager") nav("/gerente");
-              else if (user.profileType === "interpreter") nav("/interprete");
-              else nav("/usuario");
-            }}
-          >
+          <button className="tron-btn tron-muted py-3" onClick={goBack}>
             ⬅️ Volver al panel
           </button>
         </div>
@@ -138,7 +149,7 @@ export default function HistorialServicios() {
       {/* LISTA */}
       {history.length === 0 ? (
         <div className="tron-card p-6 text-white/70">
-          No hay servicios en el historial.
+          No hay servicios en tu historial.
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-3">
@@ -192,23 +203,66 @@ export default function HistorialServicios() {
                 </div>
               )}
 
+              <div className="mt-3 tron-card p-3">
+                {s.status === "paid" && (
+                  <div className="text-sm text-white/80">
+                    💳 Pago confirmado. Esperando asignación o atención.
+                  </div>
+                )}
+
+                {s.status === "matched" && (
+                  <div className="text-sm text-white/80">
+                    🤝 Servicio asignado correctamente.
+                  </div>
+                )}
+
+                {s.status === "started" && (
+                  <div className="text-sm text-white/80">
+                    🔳 Servicio actualmente en curso.
+                  </div>
+                )}
+
+                {s.status === "finished" && (
+                  <div className="text-sm text-white/80">
+                    🏁 Servicio finalizado.
+                  </div>
+                )}
+
+                {s.status === "rated" && (
+                  <div className="text-sm text-white/80">
+                    ⭐ Servicio evaluado por el usuario.
+                  </div>
+                )}
+
+                {s.status === "cancelled" && (
+                  <div className="text-sm text-white/80">
+                    ⛔ Servicio cancelado.
+                  </div>
+                )}
+
+                {s.status === "created" && (
+                  <div className="text-sm text-white/80">
+                    🧾 Servicio creado en el sistema.
+                  </div>
+                )}
+              </div>
+
               {s.note && (
-                <div className="text-sm text-white/65 mt-2">
+                <div className="text-sm text-white/60 mt-2">
                   📝 {s.note}
                 </div>
               )}
 
-              {(s.status === "finished" || s.status === "paid") &&
-                user.profileType === "user" && (
-                  <div className="mt-4">
-                    <button
-                      className="tron-btn tron-primary w-full py-3 font-semibold"
-                      onClick={() => nav(`/calificar/${s.id}`)}
-                    >
-                      ⭐ Calificar servicio
-                    </button>
-                  </div>
-                )}
+              {user.profileType === "user" && s.status === "finished" && (
+                <div className="mt-4">
+                  <button
+                    className="tron-btn tron-primary w-full py-3 font-semibold"
+                    onClick={() => nav(`/calificar/${s.id}`)}
+                  >
+                    ⭐ Calificar servicio
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

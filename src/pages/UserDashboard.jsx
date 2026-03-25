@@ -12,13 +12,13 @@ function moneyCLP(n) {
 }
 
 function statusLabel(status) {
-  return status === "requested"
-    ? "📥 Solicitud enviada"
-    : status === "accepted"
+  return status === "created"
+    ? "🧾 Creado"
+    : status === "matched"
     ? "🤝 Intérprete asignado"
-    : status === "in_progress"
+    : status === "started"
     ? "🔳 En curso"
-    : status === "done"
+    : status === "finished"
     ? "🏁 Finalizado"
     : status === "paid"
     ? "💳 Pagado"
@@ -71,10 +71,12 @@ export default function UserDashboard() {
   const counts = useMemo(() => {
     return {
       total: my.length,
-      requested: my.filter((s) => s.status === "requested").length,
-      accepted: my.filter((s) => s.status === "accepted").length,
-      in_progress: my.filter((s) => s.status === "in_progress").length,
-      done: my.filter((s) => s.status === "done").length,
+      created: my.filter((s) => s.status === "created").length,
+      matched: my.filter((s) => s.status === "matched").length,
+      started: my.filter((s) => s.status === "started").length,
+      finished: my.filter((s) => s.status === "finished").length,
+      paid: my.filter((s) => s.status === "paid").length,
+      rated: my.filter((s) => s.status === "rated").length,
     };
   }, [my]);
 
@@ -108,14 +110,14 @@ export default function UserDashboard() {
         </div>
 
         <div className="mt-4 flex gap-2 flex-wrap">
-          <Chip>📄 Total: {counts.total}</Chip>
-          <Chip>📥 Solicitadas: {counts.requested}</Chip>
-          <Chip>🤝 Asignadas: {counts.accepted}</Chip>
-          <Chip>🔳 En curso: {counts.in_progress}</Chip>
-          <Chip>🏁 Finalizadas: {counts.done}</Chip>
+          <Chip>📄 Solicitudes: {counts.total}</Chip>
+          <Chip>🧾 Creadas: {counts.created}</Chip>
+          <Chip>💳 Pagadas: {counts.paid}</Chip>
+          <Chip>🤝 Asignadas: {counts.matched}</Chip>
+          <Chip>🔳 En curso: {counts.started}</Chip>
+          <Chip>🏁 Finalizadas: {counts.finished}</Chip>
         </div>
 
-        {/* BOTONES */}
         <div className="mt-4 grid md:grid-cols-4 gap-3">
           <button
             className="tron-btn tron-primary py-3 font-semibold"
@@ -128,17 +130,16 @@ export default function UserDashboard() {
             className="tron-btn py-3 font-semibold"
             onClick={() => nav("/historial")}
           >
-            📜 Historial
+            📜 Ver Historial
           </button>
 
           <button
             className="tron-btn py-3 font-semibold"
             onClick={() => nav("/cursos")}
           >
-            🎓 Cursos
+            🎓 Cursos LSCh
           </button>
 
-          {/* ✅ NUEVO */}
           <button
             className="tron-btn py-3 font-semibold"
             onClick={() => nav("/pagos")}
@@ -172,12 +173,72 @@ export default function UserDashboard() {
               </div>
 
               <div className="mt-3 text-sm text-white/75">
-                💳 Precio: <b>{moneyCLP(s.priceCLP)}</b>
+                💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
               </div>
 
               <div className="text-sm text-white/75 mt-1">
-                🧑‍💼 Intérprete:{" "}
-                <b>{s.interpreterName || "Aún no asignado"}</b>
+                ⏱️ Duración: <b>{s.durationMin || 30} min</b>
+              </div>
+
+              {s.scheduledAt && (
+                <div className="text-sm text-white/75 mt-1">
+                  📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
+                </div>
+              )}
+
+              <div className="text-sm text-white/75 mt-1">
+                🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
+              </div>
+
+              {/* BLOQUE DESTACADO DE ESTADO */}
+              <div className="mt-3 tron-card p-3">
+                {s.status === "paid" && (
+                  <div className="text-sm text-white/80">
+                    💳 Pago confirmado. Estamos buscando un intérprete para ti.
+                  </div>
+                )}
+
+                {s.status === "matched" && (
+                  <div className="text-sm text-white/80">
+                    ✅ Ya tienes intérprete asignado:
+                    <div className="mt-1 font-semibold">
+                      🧑‍💼 {s.interpreterName || "Intérprete asignado"}
+                    </div>
+                  </div>
+                )}
+
+                {s.status === "started" && (
+                  <div className="text-sm text-white/80">
+                    🔳 El servicio ya comenzó con:
+                    <div className="mt-1 font-semibold">
+                      🧑‍💼 {s.interpreterName || "Intérprete"}
+                    </div>
+                  </div>
+                )}
+
+                {s.status === "finished" && (
+                  <div className="text-sm text-white/80">
+                    🏁 El servicio terminó correctamente.
+                  </div>
+                )}
+
+                {s.status === "rated" && (
+                  <div className="text-sm text-white/80">
+                    ⭐ Ya evaluaste este servicio. Gracias por tu opinión.
+                  </div>
+                )}
+
+                {s.status === "created" && (
+                  <div className="text-sm text-white/80">
+                    🧾 Solicitud creada. Aún no aparece como pagada/asignada.
+                  </div>
+                )}
+
+                {s.status === "cancelled" && (
+                  <div className="text-sm text-white/80">
+                    ⛔ Este servicio fue cancelado.
+                  </div>
+                )}
               </div>
 
               {s.note && (
@@ -187,9 +248,8 @@ export default function UserDashboard() {
               )}
 
               <div className="mt-4 grid gap-2">
-                {/* VIDEO */}
                 {s.mode === "video" &&
-                  (s.status === "accepted" || s.status === "in_progress") && (
+                  (s.status === "matched" || s.status === "started") && (
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold"
                       onClick={() => nav(`/video/${s.id}`)}
@@ -198,8 +258,7 @@ export default function UserDashboard() {
                     </button>
                   )}
 
-                {/* CALIFICAR */}
-                {s.status === "done" && (
+                {s.status === "finished" && (
                   <button
                     className="tron-btn w-full py-3 font-semibold"
                     onClick={() => nav(`/calificar/${s.id}`)}

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listPayments } from "../data/paymentsStore";
@@ -44,26 +44,56 @@ function methodLabel(method) {
     : "🧪 Demo";
 }
 
+function typeBadge(type) {
+  return type === "course_enroll" ? "🎓 Curso" : "🤟 Servicio";
+}
+
 export default function GestionPagos() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const payments = useMemo(() => {
+  const [q, setQ] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [methodFilter, setMethodFilter] = useState("all");
+
+  const allPayments = useMemo(() => {
     return [...listPayments()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, []);
 
+  const payments = useMemo(() => {
+    const query = (q || "").trim().toLowerCase();
+
+    return allPayments.filter((p) => {
+      const okType = typeFilter === "all" ? true : p.type === typeFilter;
+      const okStatus = statusFilter === "all" ? true : p.status === statusFilter;
+      const okMethod = methodFilter === "all" ? true : p.method === methodFilter;
+
+      const okQuery = !query
+        ? true
+        : `${p.userName || ""} ${p.refId || ""} ${p.type || ""} ${p.method || ""} ${p.note || ""}`
+            .toLowerCase()
+            .includes(query);
+
+      return okType && okStatus && okMethod && okQuery;
+    });
+  }, [allPayments, q, typeFilter, statusFilter, methodFilter]);
+
   const stats = useMemo(() => {
-    const paid = payments.filter((p) => p.status === "paid");
-    const pending = payments.filter((p) => p.status === "pending");
-    const failed = payments.filter((p) => p.status === "failed");
+    const paid = allPayments.filter((p) => p.status === "paid");
+    const pending = allPayments.filter((p) => p.status === "pending");
+    const failed = allPayments.filter((p) => p.status === "failed");
 
-    const coursePayments = payments.filter((p) => p.type === "course_enroll");
-    const servicePayments = payments.filter((p) => p.type === "service_request");
+    const coursePayments = allPayments.filter((p) => p.type === "course_enroll");
+    const servicePayments = allPayments.filter((p) => p.type === "service_request");
 
-    const totalPaidCLP = paid.reduce((acc, p) => acc + Number(p.amountCLP || 0), 0);
+    const totalPaidCLP = paid.reduce(
+      (acc, p) => acc + Number(p.amountCLP || 0),
+      0
+    );
 
     return {
-      total: payments.length,
+      total: allPayments.length,
       paid: paid.length,
       pending: pending.length,
       failed: failed.length,
@@ -71,7 +101,7 @@ export default function GestionPagos() {
       coursePayments: coursePayments.length,
       servicePayments: servicePayments.length,
     };
-  }, [payments]);
+  }, [allPayments]);
 
   if (!user) {
     return (
@@ -96,10 +126,12 @@ export default function GestionPagos() {
 
   return (
     <div className="grid gap-4">
+      {/* HEADER */}
       <div className="tron-card p-6">
         <div className="text-2xl font-semibold h-title">💳 Gestión de Pagos</div>
+
         <div className="text-white/70 mt-2">
-          Revisa pagos registrados de cursos y futuros servicios.
+          Revisa pagos de cursos y solicitudes de intérprete.
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -112,6 +144,47 @@ export default function GestionPagos() {
           <Chip>💰 Recaudado: {formatCLP(stats.totalPaidCLP)}</Chip>
         </div>
 
+        <div className="mt-4 grid md:grid-cols-4 gap-2">
+          <input
+            className="tron-input"
+            placeholder="🔎 Buscar usuario / referencia / tipo / nota"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+
+          <select
+            className="tron-select"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">🧩 Tipo: Todos</option>
+            <option value="course_enroll">🎓 Curso</option>
+            <option value="service_request">🤟 Servicio</option>
+          </select>
+
+          <select
+            className="tron-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">🧩 Estado: Todos</option>
+            <option value="paid">✅ Pagado</option>
+            <option value="pending">⏳ Pendiente</option>
+            <option value="failed">❌ Fallido</option>
+          </select>
+
+          <select
+            className="tron-select"
+            value={methodFilter}
+            onChange={(e) => setMethodFilter(e.target.value)}
+          >
+            <option value="all">🧩 Método: Todos</option>
+            <option value="demo">🧪 Demo</option>
+            <option value="webpay">💙 WebPay</option>
+            <option value="mercadopago">🟦 Mercado Pago</option>
+          </select>
+        </div>
+
         <div className="mt-4">
           <button
             className="tron-btn tron-muted py-3"
@@ -122,9 +195,10 @@ export default function GestionPagos() {
         </div>
       </div>
 
+      {/* LISTA */}
       {payments.length === 0 ? (
         <div className="tron-card p-6 text-white/70">
-          Aún no hay pagos registrados.
+          No hay pagos con esos filtros.
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-3">
@@ -135,35 +209,49 @@ export default function GestionPagos() {
                   <div className="font-semibold text-lg">
                     {typeLabel(p.type)}
                   </div>
+
                   <div className="text-sm text-white/70 mt-1">
                     Método: <b>{methodLabel(p.method)}</b>
                   </div>
                 </div>
 
-                <Chip>{statusLabel(p.status)}</Chip>
-              </div>
-
-              <div className="mt-3 text-sm text-white/75">
-                💰 Monto: <b>{formatCLP(p.amountCLP)}</b>
-              </div>
-
-              <div className="text-sm text-white/75 mt-1">
-                🆔 Referencia: <b>{p.refId}</b>
-              </div>
-
-              <div className="text-sm text-white/75 mt-1">
-                👤 Usuario: <b>{p.userName || "—"}</b>
-              </div>
-
-              <div className="text-sm text-white/65 mt-1">
-                🕒 Fecha: {new Date(p.createdAt).toLocaleString("es-CL")}
-              </div>
-
-              {p.note && (
-                <div className="text-sm text-white/60 mt-2">
-                  📝 {p.note}
+                <div className="flex flex-col gap-2 items-end">
+                  <Chip>{typeBadge(p.type)}</Chip>
+                  <Chip>{statusLabel(p.status)}</Chip>
                 </div>
-              )}
+              </div>
+
+              <div className="mt-4 tron-card p-4">
+                <div className="text-sm text-white/80">
+                  💰 Monto: <b>{formatCLP(p.amountCLP)}</b>
+                </div>
+
+                <div className="text-sm text-white/75 mt-1">
+                  🆔 Referencia: <b>{p.refId}</b>
+                </div>
+
+                <div className="text-sm text-white/75 mt-1">
+                  👤 Usuario: <b>{p.userName || "—"}</b>
+                </div>
+
+                <div className="text-sm text-white/65 mt-1">
+                  🕒 Fecha: {new Date(p.createdAt).toLocaleString("es-CL")}
+                </div>
+
+                {p.note && (
+                  <div className="text-sm text-white/60 mt-2">
+                    📝 {p.note}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 text-xs text-white/55">
+                {p.type === "course_enroll"
+                  ? "Este pago corresponde a una inscripción de curso."
+                  : p.type === "service_request"
+                  ? "Este pago corresponde a una solicitud de intérprete."
+                  : "Pago registrado en el sistema."}
+              </div>
             </div>
           ))}
         </div>
