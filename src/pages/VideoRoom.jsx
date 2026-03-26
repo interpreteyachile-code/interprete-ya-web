@@ -27,9 +27,16 @@ function serviceTypeLabel(type) {
     : "🧩 Servicio";
 }
 
+function getBackRoute(user) {
+  if (user?.profileType === "interpreter") return "/interprete";
+  if (user?.role === "manager") return "/gerente";
+  return "/usuario";
+}
+
 export default function VideoRoom() {
   const container = useRef(null);
   const apiRef = useRef(null);
+  const finishedRef = useRef(false);
 
   const { roomId } = useParams();
   const nav = useNavigate();
@@ -40,13 +47,13 @@ export default function VideoRoom() {
   const durationMinutes = Number(service?.durationMin || 30);
   const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
   const [error, setError] = useState("");
+  const [isReady, setIsReady] = useState(false);
 
-  // reiniciar contador si cambia servicio/duración
   useEffect(() => {
     setSecondsLeft(durationMinutes * 60);
   }, [durationMinutes]);
 
-  // marcar inicio si aún no empezó
+  // marcar inicio si estaba matched
   useEffect(() => {
     if (!service) return;
 
@@ -58,7 +65,7 @@ export default function VideoRoom() {
     }
   }, [service]);
 
-  // iniciar Jitsi
+  // iniciar videollamada
   useEffect(() => {
     if (!container.current) return;
 
@@ -73,10 +80,11 @@ export default function VideoRoom() {
       roomName: "interpreteya-" + roomId,
       parentNode: container.current,
       width: "100%",
-      height: 600,
+      height: "100%",
       configOverwrite: {
         startWithAudioMuted: false,
         startWithVideoMuted: false,
+        prejoinPageEnabled: false,
       },
       interfaceConfigOverwrite: {
         SHOW_JITSI_WATERMARK: false,
@@ -86,8 +94,10 @@ export default function VideoRoom() {
 
     try {
       apiRef.current = new window.JitsiMeetExternalAPI(domain, options);
+      setIsReady(true);
     } catch (err) {
       setError("❌ No se pudo abrir la videollamada.");
+      setIsReady(false);
     }
 
     return () => {
@@ -98,6 +108,32 @@ export default function VideoRoom() {
     };
   }, [roomId]);
 
+  const finishAndExit = (fromTimer = false) => {
+    if (!service || finishedRef.current) return;
+    finishedRef.current = true;
+
+    updateService(service.id, {
+      status: "finished",
+      finishedAt: Date.now(),
+    });
+
+    if (fromTimer) {
+      alert("⏱ Tiempo finalizado");
+    }
+
+    if (user?.profileType === "user") {
+      nav(`/calificar/${roomId}`, { replace: true });
+      return;
+    }
+
+    if (user?.profileType === "interpreter") {
+      nav("/interprete", { replace: true });
+      return;
+    }
+
+    nav("/historial", { replace: true });
+  };
+
   // contador
   useEffect(() => {
     if (!service) return;
@@ -106,31 +142,15 @@ export default function VideoRoom() {
       setSecondsLeft((s) => {
         if (s <= 1) {
           clearInterval(timer);
-
-          updateService(service.id, {
-            status: "finished",
-            finishedAt: Date.now(),
-          });
-
-          alert("⏱ Tiempo finalizado");
-
-          if (user?.profileType === "user") {
-            nav(`/calificar/${roomId}`, { replace: true });
-          } else if (user?.profileType === "interpreter") {
-            nav("/interprete", { replace: true });
-          } else {
-            nav("/historial", { replace: true });
-          }
-
+          finishAndExit(true);
           return 0;
         }
-
         return s - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [roomId, nav, service, user]);
+  }, [service, roomId, user]);
 
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
@@ -140,7 +160,10 @@ export default function VideoRoom() {
       <div className="tron-card p-6 max-w-2xl mx-auto">
         ❌ No se encontró el servicio.
         <div className="mt-4">
-          <button className="tron-btn tron-primary" onClick={() => nav("/historial")}>
+          <button
+            className="tron-btn tron-primary"
+            onClick={() => nav("/historial")}
+          >
             ⬅️ Volver
           </button>
         </div>
@@ -149,79 +172,104 @@ export default function VideoRoom() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto grid gap-4">
-      <div className="tron-card p-6 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="text-2xl font-semibold h-title">
-            🎥 Videollamada InterpreteYa
+    <div className="max-w-6xl mx-auto grid gap-4">
+      {/* HEADER */}
+      <div className="tron-card p-4 md:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-2xl md:text-3xl font-semibold h-title">
+              🎥 Videollamada InterpreteYa
+            </div>
+
+            <div className="text-white/70 mt-1">
+              Servicio en vivo de interpretación en Lengua de Señas Chilena
+            </div>
+
+            <div className="mt-4 grid sm:grid-cols-2 gap-2 text-sm text-white/75">
+              <div>
+                {serviceTypeLabel(service.serviceType)} • {modeLabel(service.mode)}
+              </div>
+
+              <div>
+                💳 Monto: <b>{moneyCLP(service.amountCLP)}</b>
+              </div>
+
+              <div>
+                👤 Cliente: <b>{service.clientName || service.clientRut || "—"}</b>
+              </div>
+
+              <div>
+                🧑‍💼 Intérprete: <b>{service.interpreterName || "—"}</b>
+              </div>
+
+              <div>
+                ⏱️ Duración: <b>{durationMinutes} min</b>
+              </div>
+
+              <div>
+                📡 Estado: <b>{service.status === "started" ? "En curso" : "Conectando"}</b>
+              </div>
+            </div>
           </div>
 
-          <div className="text-white/70 mt-1">
-            Comunicación en Lengua de Señas Chilena
-          </div>
+          <div className="flex flex-col gap-2 items-start lg:items-end">
+            <div className="tron-chip text-base md:text-lg font-semibold">
+              ⏱ {minutes}:{seconds.toString().padStart(2, "0")}
+            </div>
 
-          <div className="mt-3 text-sm text-white/75">
-            {serviceTypeLabel(service.serviceType)} • {modeLabel(service.mode)}
+            <div className="tron-card px-4 py-3 text-sm text-white/75">
+              {isReady
+                ? "✅ Cámara lista"
+                : error
+                ? "❌ Error de conexión"
+                : "🔄 Preparando sala"}
+            </div>
           </div>
-
-          <div className="text-sm text-white/75 mt-1">
-            👤 Cliente: <b>{service.clientName || service.clientRut || "—"}</b>
-          </div>
-
-          <div className="text-sm text-white/75 mt-1">
-            🧑‍💼 Intérprete: <b>{service.interpreterName || "—"}</b>
-          </div>
-
-          <div className="text-sm text-white/75 mt-1">
-            💳 Monto: <b>{moneyCLP(service.amountCLP)}</b>
-          </div>
-
-          <div className="text-sm text-white/75 mt-1">
-            ⏱️ Duración: <b>{durationMinutes} min</b>
-          </div>
-        </div>
-
-        <div className="tron-chip text-lg font-semibold">
-          ⏱ {minutes}:{seconds.toString().padStart(2, "0")}
         </div>
       </div>
 
+      {/* ERROR */}
       {error && (
         <div className="tron-card p-4 text-sm text-white/85">
           {error}
         </div>
       )}
 
-      <div ref={container} className="tron-card p-2 min-h-[620px]" />
+      {/* VIDEO */}
+      <div className="tron-card p-2">
+        <div
+          ref={container}
+          className="w-full min-h-[420px] h-[55vh] md:h-[65vh] lg:h-[72vh] rounded-2xl overflow-hidden"
+        />
+      </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
+      {/* STATUS BOX */}
+      <div className="tron-card p-4">
+        <div className="font-semibold">📌 Estado del servicio</div>
+        <div className="text-sm text-white/75 mt-2">
+          {user?.profileType === "user" &&
+            "Tu videollamada está activa. Al terminar, podrás calificar al intérprete."}
+
+          {user?.profileType === "interpreter" &&
+            "La videollamada está en curso. Cuando finalice, volverás a tu panel."}
+
+          {user?.role === "manager" &&
+            "La sala está abierta en modo supervisión/demo."}
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button
-          className="tron-btn tron-muted py-3 font-semibold"
-          onClick={() => {
-            if (user?.profileType === "interpreter") nav("/interprete");
-            else if (user?.role === "manager") nav("/gerente");
-            else nav("/usuario");
-          }}
+          className="tron-btn tron-muted py-3 md:py-4 font-semibold"
+          onClick={() => nav(getBackRoute(user))}
         >
           ⬅️ Volver al panel
         </button>
 
         <button
-          className="tron-btn py-3 font-semibold"
-          onClick={() => {
-            updateService(service.id, {
-              status: "finished",
-              finishedAt: Date.now(),
-            });
-
-            if (user?.profileType === "user") {
-              nav(`/calificar/${roomId}`);
-            } else if (user?.profileType === "interpreter") {
-              nav("/interprete");
-            } else {
-              nav("/historial");
-            }
-          }}
+          className="tron-btn tron-primary py-3 md:py-4 font-semibold"
+          onClick={() => finishAndExit(false)}
         >
           🏁 Finalizar llamada
         </button>
