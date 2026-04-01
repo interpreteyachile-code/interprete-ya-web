@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createService } from "../data/servicesStore";
+import {
+  createService,
+  updateService,
+  autoAssignInterpreter,
+} from "../data/servicesStore";
 import { createPayment } from "../data/paymentsStore";
 import { useAuth } from "../auth/AuthContext";
 
@@ -80,7 +84,7 @@ export default function Solicitud() {
     try {
       setSubmitting(true);
 
-      // 1) crear servicio
+      // 1) Crear servicio
       const service = createService({
         clientId: user.id,
         clientName: user.fullName,
@@ -95,7 +99,7 @@ export default function Solicitud() {
         status: "created",
       });
 
-      // 2) crear pago demo del servicio
+      // 2) Registrar pago demo
       createPayment({
         type: "service_request",
         refId: service.id,
@@ -107,11 +111,33 @@ export default function Solicitud() {
         note: "Pago demo de solicitud de intérprete",
       });
 
-      // 3) opcional: dejar el servicio como pagado si quieres marcarlo altiro
-      // Si prefieres que el gerente lo marque manualmente, borra este bloque.
-      // updateService(service.id, { status: "paid", paidAt: Date.now() });
+      // 3) Marcar servicio como pagado
+      updateService(service.id, {
+        status: "paid",
+        paidAt: Date.now(),
+      });
 
-      alert("✅ Solicitud creada y pago demo registrado");
+      // 4) Intentar auto asignar intérprete
+      let assignedInterpreter = null;
+
+      try {
+        const result = autoAssignInterpreter(service.id);
+        assignedInterpreter = result?.interpreter || null;
+      } catch (assignErr) {
+        console.log("Sin intérprete disponible para autoasignación");
+      }
+
+      // 5) Mensaje final
+      if (assignedInterpreter) {
+        alert(
+          `✅ Solicitud creada, pago registrado y asignada a ${assignedInterpreter.fullName}`
+        );
+      } else {
+        alert(
+          "✅ Solicitud creada y pago registrado. Aún no hay intérprete disponible."
+        );
+      }
+
       nav("/usuario", { replace: true });
     } catch (err) {
       setError("❌ No se pudo crear la solicitud.");
@@ -123,7 +149,9 @@ export default function Solicitud() {
   return (
     <div className="max-w-2xl mx-auto grid gap-4">
       <div className="tron-card p-6">
-        <div className="text-2xl font-semibold h-title">🤟 Solicitar Intérprete</div>
+        <div className="text-2xl font-semibold h-title">
+          🤟 Solicitar Intérprete
+        </div>
         <div className="text-white/70 mt-2">
           Completa los datos para crear tu solicitud en InterpreteYa.
         </div>
@@ -289,7 +317,11 @@ export default function Solicitud() {
           <div className="text-sm text-white/75 mt-1">
             Zona:{" "}
             <b>
-              {zone === "norte" ? "🌵 Norte" : zone === "centro" ? "🏙️ Centro" : "🌲 Sur"}
+              {zone === "norte"
+                ? "🌵 Norte"
+                : zone === "centro"
+                ? "🏙️ Centro"
+                : "🌲 Sur"}
             </b>
           </div>
 
@@ -304,7 +336,7 @@ export default function Solicitud() {
           </div>
 
           <div className="text-xs text-white/55 mt-2">
-            El pago se registrará en modo demo.
+            Se registrará el pago demo e intentará asignar intérprete automáticamente.
           </div>
         </div>
 
@@ -327,7 +359,7 @@ export default function Solicitud() {
             onClick={submit}
             disabled={submitting}
           >
-            {submitting ? "⏳ Enviando..." : "💳 Pagar y crear solicitud"}
+            {submitting ? "⏳ Enviando..." : "💳 Pagar y solicitar"}
           </button>
         </div>
       </div>
