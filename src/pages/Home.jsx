@@ -30,6 +30,19 @@ function Tile({ icon, title, desc, onClick, disabled }) {
   );
 }
 
+function PanelTitle({ title, subtitle, rightTag }) {
+  return (
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <div className="text-2xl font-semibold h-title">{title}</div>
+        {subtitle && <div className="text-white/70 mt-2">{subtitle}</div>}
+      </div>
+
+      {rightTag ? <GlowTag>{rightTag}</GlowTag> : null}
+    </div>
+  );
+}
+
 export default function Home() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -102,9 +115,51 @@ export default function Home() {
 
   return (
     <div className="grid gap-4">
-      {/* HERO PRINCIPAL */}
+      {/* ENCABEZADO PRINCIPAL */}
       <div className="tron-card p-4 md:p-6 overflow-hidden">
-        <div className="grid lg:grid-cols-2 gap-6 items-center">
+        <div className="grid lg:grid-cols-[220px_1fr] gap-6 items-center">
+          {/* LOGO */}
+<div className="flex justify-center lg:justify-start">
+  <div className="relative w-full max-w-[180px]">
+    <div className="absolute inset-0 rounded-3xl blur-xl bg-cyan-400/20 animate-pulse" />
+
+    <div className="relative tron-card p-2 rounded-3xl border border-cyan-300/30 bg-black/40 backdrop-blur">
+      <div className="relative aspect-square rounded-2xl overflow-hidden border border-cyan-300/20 bg-cyan-300/5 grid place-items-center">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400/40 animate-pulse" />
+          <div className="absolute bottom-0 right-0 w-full h-[2px] bg-cyan-400/20" />
+        </div>
+
+        <img
+          src="/logo-interpreteya.png"
+          alt="Logo InterpreteYa"
+          className="w-full h-full object-contain p-4"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+            const fallback = e.currentTarget.nextElementSibling;
+            if (fallback) fallback.style.display = "grid";
+          }}
+        />
+
+        <div
+          className="hidden w-full h-full place-items-center text-center p-4"
+          style={{ display: "none" }}
+        >
+          <div>
+            <div className="text-5xl">🤟</div>
+            <div className="mt-3 text-sm font-semibold">
+              Logo InterpreteYa
+            </div>
+            <div className="text-xs text-white/60 mt-2">
+              Usa <b>public/logo-interpreteya.png</b>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
           {/* TEXTO */}
           <div>
             <div className="text-3xl md:text-5xl font-semibold h-title leading-tight">
@@ -167,92 +222,74 @@ export default function Home() {
               oportunidades económicas para la comunidad sorda.
             </div>
           </div>
-
-          {/* IMAGEN PRINCIPAL */}
-          <div>
-            <div className="tron-card p-2">
-              <div className="relative overflow-hidden rounded-3xl border border-cyan-300/20 bg-cyan-300/5 min-h-[220px] h-[260px] md:h-[320px] lg:h-[380px]">
-                <img
-                  src="/hero-interpreteya.jpg"
-                  alt="Presentación visual de InterpreteYa"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    const fallback = e.currentTarget.nextElementSibling;
-                    if (fallback) fallback.style.display = "grid";
-                  }}
-                />
-
-                <div
-                  className="absolute inset-0 hidden place-items-center text-center p-6"
-                  style={{ display: "none" }}
-                >
-                  <div>
-                    <div className="text-6xl">🤟</div>
-                    <div className="mt-3 text-lg font-semibold">
-                      Aquí irá tu imagen principal
-                    </div>
-                    <div className="text-sm text-white/60 mt-2">
-                      Guarda tu foto o banner en <b>public/hero-interpreteya.jpg</b>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
-                  <div className="text-sm md:text-base font-semibold">
-                    InterpreteYa • Comunidad Sorda • LSCh
-                  </div>
-                  <div className="text-xs text-white/70 mt-1">
-                    Modelo autónomo, social y tecnológico
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* VIDEO DEMO */}
-      <div className="tron-card p-4 md:p-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-2xl font-semibold h-title">
-              🎬 Video de Presentación
-            </div>
-            <div className="text-white/70 mt-2">
-              Muestra cómo funciona InterpreteYa: solicitud, pago, asignación,
-              videollamada y defensa de la LSCh.
+      {/* BLOQUE DE VIDEOS */}
+      <div className="grid xl:grid-cols-[1.6fr_1fr] gap-4">
+        {/* VIDEO PRINCIPAL TUTORIALES */}
+        <div className="tron-card p-4 md:p-6">
+          <PanelTitle
+            title="🎬 Tutoriales"
+            subtitle="Video principal para mostrar el flujo de uso de InterpreteYa."
+            rightTag="📱 Mobile First"
+          />
+
+          <div className="mt-4 tron-card p-2">
+            <div className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-black aspect-video">
+              <video
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+                poster="/logo-interpreteya.png"
+              >
+                <source src="/tutorial-interpreteya.mp4" type="video/mp4" />
+                Tu navegador no soporta video HTML5.
+              </video>
             </div>
           </div>
 
-          <GlowTag>📱 Mobile First</GlowTag>
-        </div>
-
-        <div className="mt-4 tron-card p-2">
-          <div className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-black aspect-video">
-            <video
-              className="w-full h-full object-cover"
-              controls
-              playsInline
-              preload="metadata"
-              poster="/hero-interpreteya.jpg"
-            >
-              <source src="/demo-interpreteya.mp4" type="video/mp4" />
-              Tu navegador no soporta video HTML5.
-            </video>
+          <div className="text-xs text-white/55 mt-3">
+            Guarda tu video principal en <b>public/tutorial-interpreteya.mp4</b>
           </div>
         </div>
 
-        <div className="text-xs text-white/55 mt-3">
-          Guarda tu video en <b>public/demo-interpreteya.mp4</b> para verlo aquí.
+        {/* VIDEO BIENVENIDA */}
+        <div className="tron-card p-4 md:p-6">
+          <PanelTitle
+            title="👋 Bienvenido"
+            subtitle="Video corto de presentación rápida."
+            rightTag="✨ Intro"
+          />
+
+          <div className="mt-4 tron-card p-2">
+            <div className="overflow-hidden rounded-3xl border border-cyan-300/20 bg-black aspect-video">
+              <video
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+                poster="/logo-interpreteya.png"
+              >
+                <source src="/bienvenido-interpreteya.mp4" type="video/mp4" />
+                Tu navegador no soporta video HTML5.
+              </video>
+            </div>
+          </div>
+
+          <div className="text-xs text-white/55 mt-3">
+            Guarda tu video corto en <b>public/bienvenido-interpreteya.mp4</b>
+          </div>
         </div>
       </div>
 
       {/* ACCIONES RÁPIDAS */}
       <div className="tron-card p-4 md:p-6">
-        <div className="text-2xl font-semibold h-title">
-          ⚡ Accesos Rápidos
-        </div>
+        <PanelTitle
+          title="⚡ Accesos Rápidos"
+          subtitle="Accesos principales del ecosistema InterpreteYa."
+        />
 
         <div className="mt-4 grid md:grid-cols-2 gap-2">
           <Tile
