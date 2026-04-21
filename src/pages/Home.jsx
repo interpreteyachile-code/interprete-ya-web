@@ -119,46 +119,37 @@ export default function Home() {
       <div className="tron-card p-4 md:p-6 overflow-hidden">
         <div className="grid lg:grid-cols-[220px_1fr] gap-6 items-center">
           {/* LOGO */}
-<div className="flex justify-center lg:justify-start">
-  <div className="relative w-full max-w-[180px]">
-    <div className="absolute inset-0 rounded-3xl blur-xl bg-cyan-400/20 animate-pulse" />
+          <div className="flex justify-center lg:justify-start">
+            <div className="w-full max-w-[190px] logo-frame p-2">
+              <div className="logo-inner">
+                <img
+                  src="/logo-interpreteya.png"
+                  alt="Logo InterpreteYa"
+                  className="logo-img"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fallback = e.currentTarget.nextElementSibling;
+                    if (fallback) fallback.style.display = "grid";
+                  }}
+                />
 
-    <div className="relative tron-card p-2 rounded-3xl border border-cyan-300/30 bg-black/40 backdrop-blur">
-      <div className="relative aspect-square rounded-2xl overflow-hidden border border-cyan-300/20 bg-cyan-300/5 grid place-items-center">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400/40 animate-pulse" />
-          <div className="absolute bottom-0 right-0 w-full h-[2px] bg-cyan-400/20" />
-        </div>
-
-        <img
-          src="/logo-interpreteya.png"
-          alt="Logo InterpreteYa"
-          className="w-full h-full object-contain p-4"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-            const fallback = e.currentTarget.nextElementSibling;
-            if (fallback) fallback.style.display = "grid";
-          }}
-        />
-
-        <div
-          className="hidden w-full h-full place-items-center text-center p-4"
-          style={{ display: "none" }}
-        >
-          <div>
-            <div className="text-5xl">🤟</div>
-            <div className="mt-3 text-sm font-semibold">
-              Logo InterpreteYa
-            </div>
-            <div className="text-xs text-white/60 mt-2">
-              Usa <b>public/logo-interpreteya.png</b>
+                <div
+                  className="hidden w-full h-[130px] md:h-[148px] place-items-center text-center p-4"
+                  style={{ display: "none" }}
+                >
+                  <div>
+                    <div className="text-5xl">🤟</div>
+                    <div className="mt-3 text-sm font-semibold">
+                      Logo InterpreteYa
+                    </div>
+                    <div className="text-xs text-white/60 mt-2">
+                      Usa <b>public/logo-interpreteya.png</b>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
           {/* TEXTO */}
           <div>
