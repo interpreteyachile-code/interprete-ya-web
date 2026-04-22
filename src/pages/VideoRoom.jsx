@@ -53,11 +53,15 @@ export default function VideoRoom() {
     setSecondsLeft(durationMinutes * 60);
   }, [durationMinutes]);
 
-  // marcar inicio si estaba matched
+  // marcar inicio si está listo para comenzar
   useEffect(() => {
     if (!service) return;
 
-    if (service.status === "matched") {
+    const shouldStart =
+      service.status === "matched" ||
+      (service.status === "paid" && service.interpreterId);
+
+    if (shouldStart) {
       updateService(service.id, {
         status: "started",
         startedAt: service.startedAt || Date.now(),
@@ -65,7 +69,6 @@ export default function VideoRoom() {
     }
   }, [service]);
 
-  // iniciar videollamada
   useEffect(() => {
     if (!container.current) return;
 
@@ -134,7 +137,6 @@ export default function VideoRoom() {
     nav("/historial", { replace: true });
   };
 
-  // contador
   useEffect(() => {
     if (!service) return;
 
@@ -173,7 +175,6 @@ export default function VideoRoom() {
 
   return (
     <div className="max-w-6xl mx-auto grid gap-4">
-      {/* HEADER */}
       <div className="tron-card p-4 md:p-6">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="min-w-0">
@@ -207,7 +208,7 @@ export default function VideoRoom() {
               </div>
 
               <div>
-                📡 Estado: <b>{service.status === "started" ? "En curso" : "Conectando"}</b>
+                📡 Estado: <b>{service.status === "finished" ? "Finalizado" : "En curso"}</b>
               </div>
             </div>
           </div>
@@ -228,14 +229,12 @@ export default function VideoRoom() {
         </div>
       </div>
 
-      {/* ERROR */}
       {error && (
         <div className="tron-card p-4 text-sm text-white/85">
           {error}
         </div>
       )}
 
-      {/* VIDEO */}
       <div className="tron-card p-2">
         <div
           ref={container}
@@ -243,7 +242,6 @@ export default function VideoRoom() {
         />
       </div>
 
-      {/* STATUS BOX */}
       <div className="tron-card p-4">
         <div className="font-semibold">📌 Estado del servicio</div>
         <div className="text-sm text-white/75 mt-2">
@@ -258,7 +256,6 @@ export default function VideoRoom() {
         </div>
       </div>
 
-      {/* ACTIONS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <button
           className="tron-btn tron-muted py-3 md:py-4 font-semibold"

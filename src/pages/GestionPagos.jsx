@@ -126,7 +126,6 @@ export default function GestionPagos() {
 
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="tron-card p-6">
         <div className="text-2xl font-semibold h-title">💳 Gestión de Pagos</div>
 
@@ -195,7 +194,6 @@ export default function GestionPagos() {
         </div>
       </div>
 
-      {/* LISTA */}
       {payments.length === 0 ? (
         <div className="tron-card p-6 text-white/70">
           No hay pagos con esos filtros.

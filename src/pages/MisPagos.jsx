@@ -48,6 +48,12 @@ function methodLabel(method) {
     : "🧪 Demo";
 }
 
+function getBackRoute(user) {
+  if (user?.role === "manager") return "/gerente";
+  if (user?.profileType === "interpreter") return "/interprete";
+  return "/usuario";
+}
+
 export default function MisPagos() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -109,7 +115,6 @@ export default function MisPagos() {
 
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="tron-card p-6">
         <div className="text-2xl font-semibold h-title">💳 Mis Pagos</div>
         <div className="text-white/70 mt-2">
@@ -159,14 +164,13 @@ export default function MisPagos() {
         <div className="mt-4">
           <button
             className="tron-btn tron-muted py-3"
-            onClick={() => nav("/usuario")}
+            onClick={() => nav(getBackRoute(user))}
           >
             ⬅️ Volver al panel
           </button>
         </div>
       </div>
 
-      {/* LISTA */}
       {payments.length === 0 ? (
         <div className="tron-card p-6 text-white/70">
           No tienes pagos con esos filtros.
