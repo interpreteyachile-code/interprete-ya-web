@@ -93,6 +93,31 @@ function flowMessage(service) {
   return "ℹ️ Estado actualizado.";
 }
 
+function MetricCard({ label, value, hint }) {
+  return (
+    <div className="aether-mini-metric">
+      <div className="aether-mini-label">{label}</div>
+      <div className="aether-mini-value">{value}</div>
+      {hint ? <div className="text-xs text-white/50">{hint}</div> : null}
+    </div>
+  );
+}
+
+function AetherBar({ label, value }) {
+  return (
+    <div className="aether-bar">
+      <div className="aether-bar-label">{label}</div>
+      <div className="aether-bar-track">
+        <div
+          className="aether-bar-fill"
+          style={{ height: `${Math.max(8, Math.min(100, value))}%` }}
+        />
+      </div>
+      <div className="aether-bar-value">{value}%</div>
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -121,7 +146,6 @@ export default function UserDashboard() {
     return (
       <div className="tron-card p-6 max-w-xl mx-auto">
         🔒 Debes iniciar sesión.
-
         <div className="mt-3">
           <button
             className="tron-btn tron-primary"
@@ -134,41 +158,62 @@ export default function UserDashboard() {
     );
   }
 
+  const totalBase = Math.max(1, counts.total);
+  const createdPercent = Math.round((counts.created / totalBase) * 100);
+  const activePercent = Math.round(((counts.matched + counts.started) / totalBase) * 100);
+  const completedPercent = Math.round(((counts.finished + counts.rated) / totalBase) * 100);
+
   return (
     <div className="grid gap-4">
-      {/* PANEL */}
-      <div className="tron-card p-4 md:p-6">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-2xl md:text-3xl font-semibold h-title">
-              🧏‍♀️ Panel Usuario
+      {/* HEADER */}
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="aether-title">AETHER | CLIENT RECORDS</div>
+              <div className="aether-subtitle">
+                User dashboard · service tracking center
+              </div>
             </div>
 
-            <div className="text-white/70 mt-2">
-              Revisa tus solicitudes, pagos, estado del servicio y accesos rápidos.
-            </div>
-          </div>
-
-          <div className="tron-card p-4 min-w-[220px]">
-            <div className="text-xs text-white/60">Sesión</div>
-            <div className="text-sm font-semibold">{user.fullName}</div>
-            <div className="text-xs text-white/55 mt-1">
-              🪪 {user.rut}
+            <div className="panel-mini min-w-[220px]">
+              <div className="panel-label">User session</div>
+              <div className="text-sm font-semibold mt-2">{user.fullName}</div>
+              <div className="text-xs text-white/55 mt-1">🪪 {user.rut}</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2 flex-wrap">
-          <Chip>📄 Solicitudes: {counts.total}</Chip>
-          <Chip>🧾 Creadas: {counts.created}</Chip>
-          <Chip>💳 Pagadas: {counts.paid}</Chip>
-          <Chip>🤝 Asignadas: {counts.matched}</Chip>
-          <Chip>🔳 En curso: {counts.started}</Chip>
-          <Chip>🏁 Finalizadas: {counts.finished}</Chip>
-          <Chip>⭐ Evaluadas: {counts.rated}</Chip>
+        <div className="p-4 grid lg:grid-cols-[1.3fr_.7fr] gap-4">
+          <div className="grid gap-4">
+            <div className="aether-block">
+              <div className="aether-block-head">Active Data Streams</div>
+              <div className="aether-block-body">
+                <div className="aether-wave" />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <MetricCard label="Requests" value={counts.total} hint="Total registradas" />
+              <MetricCard label="Paid" value={counts.paid} hint="Pagos confirmados" />
+              <MetricCard label="Active" value={counts.matched + counts.started} hint="Asignadas / en curso" />
+              <MetricCard label="Done" value={counts.finished + counts.rated} hint="Finalizadas / evaluadas" />
+            </div>
+          </div>
+
+          <div className="aether-block">
+            <div className="aether-block-head">System Overview</div>
+            <div className="aether-block-body">
+              <div className="aether-statbars">
+                <AetherBar label="Created" value={createdPercent} />
+                <AetherBar label="Active" value={activePercent} />
+                <AetherBar label="Done" value={completedPercent} />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             className="tron-btn tron-primary py-3 font-semibold"
             onClick={() => nav("/solicitud")}
@@ -200,84 +245,104 @@ export default function UserDashboard() {
       </div>
 
       {/* LISTA */}
-      {my.length === 0 ? (
-        <div className="tron-card p-6 text-white/70">
-          Aún no tienes solicitudes creadas.
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="aether-title">Service History</div>
+          <div className="aether-subtitle">
+            Seguimiento de solicitudes, pagos y servicios en vivo
+          </div>
         </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-3">
-          {my.map((s) => (
-            <div key={s.id} className="tron-card p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-semibold text-lg">
-                    {serviceTypeLabel(s.serviceType)}
-                  </div>
 
-                  <div className="text-sm text-white/70 mt-1">
-                    {modeLabel(s.mode)} • {zoneLabel(s.zone)}
-                  </div>
-                </div>
-
-                <Chip>{statusLabel(s.status)}</Chip>
-              </div>
-
-              <div className="mt-3 grid gap-1 text-sm text-white/75">
-                <div>
-                  💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
-                </div>
-
-                <div>
-                  ⏱️ Duración: <b>{s.durationMin || 30} min</b>
-                </div>
-
-                {s.scheduledAt && (
-                  <div>
-                    📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
-                  </div>
-                )}
-
-                <div>
-                  🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
-                </div>
-              </div>
-
-              <div className="mt-3 tron-card p-3">
-                <div className="text-sm text-white/80">
-                  {flowMessage(s)}
-                </div>
-              </div>
-
-              {s.note && (
-                <div className="text-sm text-white/65 mt-2">
-                  📝 {s.note}
-                </div>
-              )}
-
-              <div className="mt-4 grid gap-2">
-                {s.mode === "video" &&
-                  (s.status === "matched" || s.status === "started" || (s.status === "paid" && s.interpreterId)) && (
-                    <button
-                      className="tron-btn tron-primary w-full py-3 font-semibold"
-                      onClick={() => nav(`/video/${s.id}`)}
-                    >
-                      🎥 Entrar a videollamada
-                    </button>
-                  )}
-
-                {s.status === "finished" && (
-                  <button
-                    className="tron-btn w-full py-3 font-semibold"
-                    onClick={() => nav(`/calificar/${s.id}`)}
-                  >
-                    ⭐ Calificar servicio
-                  </button>
-                )}
-              </div>
+        <div className="p-4">
+          {my.length === 0 ? (
+            <div className="panel-mini text-white/70">
+              Aún no tienes solicitudes creadas.
             </div>
-          ))}
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {my.map((s) => (
+                <div key={s.id} className="aether-shell">
+                  <div className="aether-header">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="aether-title">
+                          {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
+                        </div>
+                        <div className="aether-subtitle">
+                          {zoneLabel(s.zone)} · {statusLabel(s.status)}
+                        </div>
+                      </div>
+
+                      <Chip>{statusLabel(s.status)}</Chip>
+                    </div>
+                  </div>
+
+                  <div className="p-4 grid gap-3">
+                    <div className="aether-block">
+                      <div className="aether-block-head">Service Data</div>
+                      <div className="aether-block-body grid gap-1 text-sm text-white/75">
+                        <div>
+                          💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
+                        </div>
+
+                        <div>
+                          ⏱️ Duración: <b>{s.durationMin || 30} min</b>
+                        </div>
+
+                        {s.scheduledAt && (
+                          <div>
+                            📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
+                          </div>
+                        )}
+
+                        <div>
+                          🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="aether-block">
+                      <div className="aether-block-head">Live Status</div>
+                      <div className="aether-block-body text-sm text-white/80">
+                        {flowMessage(s)}
+                      </div>
+                    </div>
+
+                    {s.note && (
+                      <div className="panel-mini text-sm text-white/65">
+                        📝 {s.note}
+                      </div>
+                    )}
+
+                    <div className="grid gap-2">
+                      {s.mode === "video" &&
+                        (s.status === "matched" ||
+                          s.status === "started" ||
+                          (s.status === "paid" && s.interpreterId)) && (
+                          <button
+                            className="tron-btn tron-primary w-full py-3 font-semibold"
+                            onClick={() => nav(`/video/${s.id}`)}
+                          >
+                            🎥 Entrar a videollamada
+                          </button>
+                        )}
+
+                      {s.status === "finished" && (
+                        <button
+                          className="tron-btn w-full py-3 font-semibold"
+                          onClick={() => nav(`/calificar/${s.id}`)}
+                        >
+                          ⭐ Calificar servicio
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

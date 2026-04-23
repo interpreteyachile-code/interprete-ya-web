@@ -17,14 +17,24 @@ function moneyCLP(n) {
   return "$" + Number(n || 0).toLocaleString("es-CL");
 }
 
+function MetricCard({ label, value, hint }) {
+  return (
+    <div className="panel-mini">
+      <div className="panel-label">{label}</div>
+      <div className="panel-stat mt-2">{value}</div>
+      {hint ? <div className="text-xs text-white/50 mt-1">{hint}</div> : null}
+    </div>
+  );
+}
+
 function Modal({ open, onClose, children }) {
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
       <div className="absolute inset-0 grid place-items-center p-4">
-        <div className="w-full max-w-3xl tron-card p-6 relative">
+        <div className="w-full max-w-5xl tron-card p-5 md:p-6 relative">
           <button
             className="tron-btn px-4 py-2 absolute right-4 top-4"
             onClick={onClose}
@@ -122,7 +132,6 @@ export default function ManagerDashboard() {
       .filter((u) => (accType === "all" ? true : u.profileType === accType))
       .filter((u) => {
         if (!query) return true;
-
         return (
           (u.fullName || "").toLowerCase().includes(query) ||
           (u.rut || "").toLowerCase().includes(query) ||
@@ -137,6 +146,8 @@ export default function ManagerDashboard() {
       pending: allClients.filter((u) => u.status === "pending").length,
       active: allClients.filter((u) => u.status === "active").length,
       rejected: allClients.filter((u) => u.status === "rejected").length,
+      users: allClients.filter((u) => u.profileType === "user").length,
+      interpreters: allClients.filter((u) => u.profileType === "interpreter").length,
     };
   }, [allClients]);
 
@@ -152,7 +163,6 @@ export default function ManagerDashboard() {
       .filter((s) => (svcMode === "all" ? true : s.mode === svcMode))
       .filter((s) => {
         if (!query) return true;
-
         return (
           (s.clientName || "").toLowerCase().includes(query) ||
           (s.interpreterName || "").toLowerCase().includes(query) ||
@@ -171,6 +181,7 @@ export default function ManagerDashboard() {
       finished: by("finished"),
       paid: by("paid"),
       rated: by("rated"),
+      waitingAssign: allServices.filter((s) => s.status === "paid" && !s.interpreterId).length,
     };
   }, [allServices]);
 
@@ -220,6 +231,7 @@ export default function ManagerDashboard() {
 
   const assignInterpreter = () => {
     if (!selectedService) return;
+
     if (!selectedInterpreterId) {
       alert("Selecciona un intérprete.");
       return;
@@ -247,42 +259,39 @@ export default function ManagerDashboard() {
 
   return (
     <div className="grid gap-4">
-      <div className="tron-card p-6">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-2xl font-semibold h-title">
-              🧑‍💼 Panel Gerente
+      {/* HEADER AETHER */}
+      <div className="tron-card p-5 md:p-6">
+        <div className="panel-head">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="text-2xl md:text-3xl font-semibold h-title">
+                AETHER | PANEL GERENTE
+              </div>
+              <div className="text-white/70 mt-2">
+                Centro operativo de cuentas, servicios y pagos del sistema.
+              </div>
             </div>
 
-            <div className="text-white/70 mt-2">
-              Cuentas, servicios y pagos del sistema.
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Chip>⏳ Pendientes: {accCounts.pending}</Chip>
-              <Chip>✅ Activos: {accCounts.active}</Chip>
-              <Chip>⛔ Rechazados: {accCounts.rejected}</Chip>
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Chip>🧾 {svcCounts.created}</Chip>
-              <Chip>🤝 {svcCounts.matched}</Chip>
-              <Chip>🔳 {svcCounts.started}</Chip>
-              <Chip>🏁 {svcCounts.finished}</Chip>
-              <Chip>💳 {svcCounts.paid}</Chip>
-              <Chip>⭐ {svcCounts.rated}</Chip>
+            <div className="panel-mini min-w-[220px]">
+              <div className="panel-label">System operator</div>
+              <div className="text-sm font-semibold mt-2">{user.fullName}</div>
+              <div className="text-xs text-white/55 mt-1">{user.email}</div>
             </div>
           </div>
+        </div>
 
-          <div className="tron-card p-4">
-            <div className="text-xs text-white/60">Gerente</div>
-            <div className="text-sm font-semibold">{user.fullName}</div>
-            <div className="text-xs text-white/55 mt-1">{user.email}</div>
-          </div>
+        {/* MÉTRICAS */}
+        <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <MetricCard label="Pending accounts" value={accCounts.pending} hint="Cuentas por revisar" />
+          <MetricCard label="Active accounts" value={accCounts.active} hint="Cuentas habilitadas" />
+          <MetricCard label="Interpreters" value={accCounts.interpreters} hint="Activos y en revisión" />
+          <MetricCard label="Paid services" value={svcCounts.paid} hint="Pagos confirmados" />
+          <MetricCard label="Waiting assign" value={svcCounts.waitingAssign} hint="Servicios sin intérprete" />
         </div>
 
         <div className="mt-4 glow-line" />
 
+        {/* NAV OPERATIVA */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
@@ -309,16 +318,21 @@ export default function ManagerDashboard() {
 
           <input
             className="tron-input w-full sm:w-[340px]"
-            placeholder="🔎 Buscar (nombre / rut / correo / id)"
+            placeholder="🔎 Buscar nombre / rut / correo / id"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
       </div>
 
+      {/* CUENTAS */}
       {tab === "accounts" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
+            <div className="panel-head">
+              <div className="text-xl font-semibold h-title">Client records</div>
+            </div>
+
             <div className="grid md:grid-cols-3 gap-2">
               <select
                 className="tron-select"
@@ -362,56 +376,44 @@ export default function ManagerDashboard() {
             <div className="grid md:grid-cols-2 gap-3">
               {accounts.map((u) => (
                 <div key={u.id} className="tron-card p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-lg">{u.fullName}</div>
-
-                      <div className="text-sm text-white/70 mt-1">
-                        {u.profileType === "interpreter"
-                          ? "🧑‍💼 Intérprete"
-                          : "🧏‍♀️ Usuario"}{" "}
-                        • 🪪 <b>{u.rut}</b>
+                  <div className="panel-head">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-lg">{u.fullName}</div>
+                        <div className="text-sm text-white/70 mt-1">
+                          {u.profileType === "interpreter" ? "🧑‍💼 Intérprete" : "🧏‍♀️ Usuario"} • 🪪 <b>{u.rut}</b>
+                        </div>
+                        <div className="text-xs text-white/55 mt-1">📧 {u.email}</div>
                       </div>
 
-                      <div className="text-xs text-white/55 mt-1">
-                        📧 {u.email}
+                      <Chip>{statusUserLabel(u.status)}</Chip>
+                    </div>
+                  </div>
+
+                  {u.profileType === "interpreter" && u.interpreterProfile && (
+                    <div className="panel-mini mt-3">
+                      <div className="panel-label">Interpreter profile</div>
+
+                      <div className="text-xs text-white/75 mt-3">
+                        📜 Certificación: <b>{u.interpreterProfile.certification || "—"}</b>
+                      </div>
+                      <div className="text-xs text-white/75 mt-1">
+                        🕒 Años experiencia: <b>{u.interpreterProfile.years ?? 0}</b>
+                      </div>
+                      <div className="text-xs text-white/75 mt-1">
+                        🧩 Especialidad: <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
                       </div>
 
-                      {u.profileType === "interpreter" && u.interpreterProfile && (
-                        <div className="mt-3 tron-card p-3">
-                          <div className="text-sm font-semibold">
-                            🧑‍💼 Datos Intérprete
-                          </div>
-
-                          <div className="text-xs text-white/70 mt-2">
-                            📜 Certificación:{" "}
-                            <b>{u.interpreterProfile.certification || "—"}</b>
-                          </div>
-
-                          <div className="text-xs text-white/70 mt-1">
-                            🕒 Años experiencia:{" "}
-                            <b>{u.interpreterProfile.years ?? 0}</b>
-                          </div>
-
-                          <div className="text-xs text-white/70 mt-1">
-                            🧩 Especialidad:{" "}
-                            <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
-                          </div>
-
-                          {u.interpreterProfile.note && (
-                            <div className="text-xs text-white/60 mt-1">
-                              📝 {u.interpreterProfile.note}
-                            </div>
-                          )}
+                      {u.interpreterProfile.note && (
+                        <div className="text-xs text-white/60 mt-2">
+                          📝 {u.interpreterProfile.note}
                         </div>
                       )}
                     </div>
-
-                    <Chip>{statusUserLabel(u.status)}</Chip>
-                  </div>
+                  )}
 
                   {u.status === "pending" ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-4 grid grid-cols-2 gap-2">
                       <button
                         className="tron-btn tron-primary font-semibold py-3"
                         onClick={() => setAccountStatus(u.id, "active")}
@@ -420,7 +422,7 @@ export default function ManagerDashboard() {
                       </button>
 
                       <button
-                        className="tron-btn font-semibold py-3"
+                        className="tron-btn tron-danger font-semibold py-3"
                         onClick={() => setAccountStatus(u.id, "rejected")}
                       >
                         ⛔ Rechazar
@@ -428,7 +430,7 @@ export default function ManagerDashboard() {
                     </div>
                   ) : (
                     <button
-                      className="tron-btn tron-muted w-full font-semibold py-3 mt-3"
+                      className="tron-btn tron-muted w-full font-semibold py-3 mt-4"
                       onClick={() => setAccountStatus(u.id, "pending")}
                     >
                       ↩️ Volver a Pendiente
@@ -441,9 +443,14 @@ export default function ManagerDashboard() {
         </div>
       )}
 
+      {/* SERVICIOS */}
       {tab === "services" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
+            <div className="panel-head">
+              <div className="text-xl font-semibold h-title">Service registry</div>
+            </div>
+
             <div className="grid md:grid-cols-3 gap-2">
               <select
                 className="tron-select"
@@ -496,28 +503,22 @@ export default function ManagerDashboard() {
                   onClick={() => openService(s)}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-semibold">
                         {statusServiceLabel(s.status)} • {modeLabel(s.mode)}
                       </div>
 
                       <div className="text-xs text-white/60 mt-1">
-                        Cliente: <b>{s.clientName || "—"}</b> • 💳{" "}
-                        {moneyCLP(s.amountCLP)}
+                        Cliente: <b>{s.clientName || "—"}</b> • 💳 {moneyCLP(s.amountCLP)}
                       </div>
 
                       <div className="text-xs text-white/55 mt-1">
-                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID{" "}
-                        {String(s.id).slice(0, 6)}…
+                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID {String(s.id).slice(0, 6)}…
                       </div>
                     </div>
 
                     <Chip>
-                      {s.mode === "video"
-                        ? "🎥"
-                        : s.mode === "schedule"
-                        ? "📅"
-                        : "⚡"}
+                      {s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}
                     </Chip>
                   </div>
                 </button>
@@ -528,16 +529,14 @@ export default function ManagerDashboard() {
           <Modal open={!!selectedService} onClose={() => setSelectedService(null)}>
             {!selectedService ? null : (
               <div>
-                <div className="text-2xl font-semibold h-title">
-                  📌 Servicio
+                <div className="panel-head">
+                  <div className="text-2xl font-semibold h-title">Service detail</div>
+                  <div className="text-white/70 mt-2">
+                    {statusServiceLabel(selectedService.status)} • {modeLabel(selectedService.mode)}
+                  </div>
                 </div>
 
-                <div className="text-white/70 mt-1">
-                  {statusServiceLabel(selectedService.status)} •{" "}
-                  {modeLabel(selectedService.mode)}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Chip>Cliente: {selectedService.clientName || "—"}</Chip>
                   <Chip>Intérprete: {selectedService.interpreterName || "—"}</Chip>
                   <Chip>💳 {moneyCLP(selectedService.amountCLP)}</Chip>
@@ -546,49 +545,43 @@ export default function ManagerDashboard() {
                 </div>
 
                 {selectedServicePayment ? (
-                  <div className="mt-4 tron-card p-4">
-                    <div className="font-semibold">💳 Pago asociado</div>
+                  <div className="panel-mini mt-4">
+                    <div className="panel-label">Payment overview</div>
 
-                    <div className="text-sm text-white/75 mt-2">
+                    <div className="text-sm text-white/75 mt-3">
                       Estado: <b>{selectedServicePayment.status || "—"}</b>
                     </div>
-
                     <div className="text-sm text-white/75 mt-1">
                       Método: <b>{selectedServicePayment.method || "demo"}</b>
                     </div>
-
                     <div className="text-sm text-white/75 mt-1">
                       Usuario: <b>{selectedServicePayment.userName || "—"}</b>
                     </div>
-
                     <div className="text-sm text-white/75 mt-1">
                       Monto: <b>{moneyCLP(selectedServicePayment.amountCLP)}</b>
                     </div>
-
-                    <div className="text-sm text-white/65 mt-1">
-                      Fecha:{" "}
-                      {new Date(selectedServicePayment.createdAt).toLocaleString(
-                        "es-CL"
-                      )}
+                    <div className="text-sm text-white/60 mt-1">
+                      Fecha: {new Date(selectedServicePayment.createdAt).toLocaleString("es-CL")}
                     </div>
 
                     {selectedServicePayment.note && (
-                      <div className="text-sm text-white/60 mt-2">
+                      <div className="text-sm text-white/55 mt-2">
                         📝 {selectedServicePayment.note}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="mt-4 tron-card p-4 text-white/70">
+                  <div className="panel-mini mt-4 text-white/70">
                     ⚠️ Este servicio aún no tiene pago asociado.
                   </div>
                 )}
 
-                {/* ASIGNACIÓN MANUAL */}
                 <div className="mt-4 tron-card p-5">
-                  <div className="font-semibold">🧑‍💼 Asignar intérprete</div>
+                  <div className="panel-head">
+                    <div className="text-lg font-semibold h-title">Interpreter registry</div>
+                  </div>
 
-                  <div className="mt-3 grid md:grid-cols-[1fr_auto] gap-2">
+                  <div className="grid md:grid-cols-[1fr_auto] gap-2">
                     <select
                       className="tron-select"
                       value={selectedInterpreterId}
@@ -617,9 +610,12 @@ export default function ManagerDashboard() {
 
                 {selectedService.mode === "video" && (
                   <div className="mt-4 tron-card p-5">
-                    <div className="font-semibold">🎥 Sala (demo)</div>
+                    <div className="panel-head">
+                      <div className="text-lg font-semibold h-title">Video call center</div>
+                    </div>
+
                     <button
-                      className="tron-btn tron-primary w-full py-3 font-semibold mt-3"
+                      className="tron-btn tron-primary w-full py-3 font-semibold"
                       onClick={() =>
                         window.open(
                           `https://meet.jit.si/InterpreteYa-${selectedService.id}`,
@@ -627,7 +623,7 @@ export default function ManagerDashboard() {
                         )
                       }
                     >
-                      Abrir videollamada
+                      🎥 Abrir videollamada
                     </button>
                   </div>
                 )}

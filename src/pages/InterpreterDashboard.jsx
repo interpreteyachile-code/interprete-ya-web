@@ -86,6 +86,36 @@ function flowMessage(service, user) {
   return "ℹ️ Estado actualizado.";
 }
 
+function MetricCard({ label, value, hint }) {
+  return (
+    <div className="aether-mini-metric">
+      <div className="aether-mini-label">{label}</div>
+      <div className="aether-mini-value">{value}</div>
+      {hint ? <div className="text-xs text-white/50">{hint}</div> : null}
+    </div>
+  );
+}
+
+function AetherBar({ label, value }) {
+  return (
+    <div className="aether-bar">
+      <div className="aether-bar-label">{label}</div>
+      <div className="aether-bar-track">
+        <div
+          className="aether-bar-fill"
+          style={{ height: `${Math.max(8, Math.min(100, value))}%` }}
+        />
+      </div>
+      <div className="aether-bar-value">{value}%</div>
+    </div>
+  );
+}
+
+function roleLabel(user) {
+  if (user?.role === "manager") return "Supervisor";
+  return "Interpreter";
+}
+
 export default function InterpreterDashboard() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -95,12 +125,10 @@ export default function InterpreterDashboard() {
     return listServices().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [tick]);
 
-  // solo pagados y sin intérprete asignado
   const available = useMemo(() => {
     return services.filter((s) => s.status === "paid" && !s.interpreterId);
   }, [services]);
 
-  // asignados al intérprete actual
   const mine = useMemo(() => {
     return services.filter((s) => s.interpreterId === user?.id);
   }, [services, user?.id]);
@@ -143,7 +171,6 @@ export default function InterpreterDashboard() {
 
   const take = (serviceId) => {
     const service = services.find((s) => s.id === serviceId);
-
     if (!service) return;
 
     if (service.interpreterId) {
@@ -176,144 +203,186 @@ export default function InterpreterDashboard() {
     refresh();
   };
 
+  const availablePercent = services.length
+    ? Math.round((available.length / services.length) * 100)
+    : 8;
+
+  const activePercent = services.length
+    ? Math.round((activeMine.length / services.length) * 100)
+    : 8;
+
+  const ratingPercent = Math.max(8, Math.min(100, Math.round((Number(myRating.avg || 0) / 5) * 100)));
+
   const Card = ({ s, showTake = false }) => (
-    <div className="tron-card p-4 md:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-semibold text-lg">
-            {serviceTypeLabel(s.serviceType)}
+    <div className="aether-shell">
+      <div className="aether-header">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="aether-title">
+              {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
+            </div>
+            <div className="aether-subtitle">
+              {zoneLabel(s.zone)} · {statusLabel(s.status)}
+            </div>
           </div>
 
-          <div className="text-sm text-white/70 mt-1">
-            {modeLabel(s.mode)} • {zoneLabel(s.zone)}
-          </div>
+          <Chip>{statusLabel(s.status)}</Chip>
+        </div>
+      </div>
 
-          <div className="mt-3 grid gap-1 text-sm text-white/75">
-            <div>
-              👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b>
-            </div>
-
-            <div>
-              💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
-            </div>
-
-            <div>
-              ⏱️ Duración: <b>{s.durationMin || 30} min</b>
-            </div>
+      <div className="p-4 grid gap-3">
+        <div className="aether-block">
+          <div className="aether-block-head">Service Data</div>
+          <div className="aether-block-body grid gap-1 text-sm text-white/75">
+            <div>👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b></div>
+            <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
+            <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
 
             {s.scheduledAt && (
-              <div>
-                📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
-              </div>
+              <div>📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b></div>
             )}
 
             {s.interpreterName && (
-              <div>
-                🧑‍💼 Asignado: <b>{s.interpreterName}</b>
-              </div>
+              <div>🧑‍💼 Asignado: <b>{s.interpreterName}</b></div>
             )}
+
+            {s.note ? (
+              <div className="text-xs text-white/58 mt-2">📝 {s.note}</div>
+            ) : null}
           </div>
-
-          {s.note ? (
-            <div className="text-xs text-white/60 mt-2">📝 {s.note}</div>
-          ) : null}
         </div>
 
-        <Chip>{statusLabel(s.status)}</Chip>
-      </div>
-
-      <div className="mt-3 tron-card p-3">
-        <div className="text-sm text-white/80">
-          {flowMessage(s, user)}
+        <div className="aether-block">
+          <div className="aether-block-head">Live Status</div>
+          <div className="aether-block-body text-sm text-white/80">
+            {flowMessage(s, user)}
+          </div>
         </div>
-      </div>
 
-      {showTake && (
-        <div className="mt-4">
+        {showTake && (
           <button
             className="tron-btn tron-primary w-full font-semibold py-3"
             onClick={() => take(s.id)}
           >
             ✅ Aceptar solicitud
           </button>
-        </div>
-      )}
+        )}
 
-      {(s.status === "matched" || s.status === "started") &&
-        s.interpreterId === user.id && (
-          <div className="mt-4 grid gap-2">
-            {s.mode === "video" && (
-              <button
-                className="tron-btn tron-primary w-full font-semibold py-3"
-                onClick={() => nav(`/video/${s.id}`)}
-              >
-                🎥 Entrar a videollamada
-              </button>
-            )}
+        {(s.status === "matched" || s.status === "started") &&
+          s.interpreterId === user.id && (
+            <div className="grid gap-2">
+              {s.mode === "video" && (
+                <button
+                  className="tron-btn tron-primary w-full font-semibold py-3"
+                  onClick={() => nav(`/video/${s.id}`)}
+                >
+                  🎥 Entrar a videollamada
+                </button>
+              )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                className="tron-btn tron-muted font-semibold py-3"
-                onClick={() => start(s.id)}
-                disabled={s.status === "started"}
-              >
-                {s.status === "started" ? "✅ En curso" : "⏳ Iniciar"}
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  className="tron-btn tron-muted font-semibold py-3"
+                  onClick={() => start(s.id)}
+                  disabled={s.status === "started"}
+                >
+                  {s.status === "started" ? "✅ En curso" : "⏳ Iniciar"}
+                </button>
 
-              <button
-                className="tron-btn font-semibold py-3"
-                onClick={() => finish(s.id)}
-              >
-                🏁 Finalizar
-              </button>
+                <button
+                  className="tron-btn font-semibold py-3"
+                  onClick={() => finish(s.id)}
+                >
+                  🏁 Finalizar
+                </button>
+              </div>
             </div>
+          )}
+
+        {s.status === "finished" && s.interpreterId === user.id && (
+          <div className="panel-mini text-sm text-white/75">
+            ✅ Servicio finalizado. Esperando evaluación del usuario.
           </div>
         )}
 
-      {s.status === "finished" && s.interpreterId === user.id && (
-        <div className="mt-4 tron-card p-3 text-sm text-white/75">
-          ✅ Servicio finalizado. Esperando evaluación del usuario.
-        </div>
-      )}
-
-      {s.status === "rated" && s.interpreterId === user.id && (
-        <div className="mt-4 tron-card p-3 text-sm text-white/75">
-          ⭐ Este servicio ya fue evaluado.
-        </div>
-      )}
+        {s.status === "rated" && s.interpreterId === user.id && (
+          <div className="panel-mini text-sm text-white/75">
+            ⭐ Este servicio ya fue evaluado.
+          </div>
+        )}
+      </div>
     </div>
   );
 
   return (
     <div className="grid gap-4">
       {/* HEADER */}
-      <div className="tron-card p-4 md:p-6">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-2xl md:text-3xl font-semibold h-title">
-              🧑‍💼 Panel Intérprete
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="aether-title">AETHER | INTERPRETER REGISTRY</div>
+              <div className="aether-subtitle">
+                Live assignment center · {roleLabel(user)}
+              </div>
             </div>
-            <div className="text-white/70 mt-2">
-              Solicitudes pagadas disponibles, servicios asignados y estado del trabajo.
-            </div>
-          </div>
 
-          <div className="tron-card p-4 min-w-[220px]">
-            <div className="text-xs text-white/60">Sesión</div>
-            <div className="text-sm font-semibold">{user.fullName}</div>
-            <div className="text-xs text-white/55 mt-1">
-              ⭐ Rating: {myRating.avg} ({myRating.total})
+            <div className="panel-mini min-w-[220px]">
+              <div className="panel-label">Operator</div>
+              <div className="text-sm font-semibold mt-2">{user.fullName}</div>
+              <div className="text-xs text-white/55 mt-1">
+                ⭐ Rating: {myRating.avg} ({myRating.total})
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2 flex-wrap">
-          <Chip>💳 Disponibles: {available.length}</Chip>
-          <Chip>🤝 Activos: {activeMine.length}</Chip>
-          <Chip>🏁 Finalizados: {finishedMine.length}</Chip>
+        <div className="p-4 grid lg:grid-cols-[1.3fr_.7fr] gap-4">
+          <div className="grid gap-4">
+            <div className="aether-block">
+              <div className="aether-block-head">Active Data Streams</div>
+              <div className="aether-block-body">
+                <div className="aether-wave" />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <MetricCard
+                label="Available"
+                value={available.length}
+                hint="Pagados sin intérprete"
+              />
+              <MetricCard
+                label="Active"
+                value={activeMine.length}
+                hint="Asignados / en curso"
+              />
+              <MetricCard
+                label="Finished"
+                value={finishedMine.length}
+                hint="Cerrados o evaluados"
+              />
+              <MetricCard
+                label="Rating"
+                value={myRating.avg}
+                hint={`${myRating.total} evaluaciones`}
+              />
+            </div>
+          </div>
+
+          <div className="aether-block">
+            <div className="aether-block-head">System Overview</div>
+            <div className="aether-block-body">
+              <div className="aether-statbars">
+                <AetherBar label="Avail" value={availablePercent} />
+                <AetherBar label="Active" value={activePercent} />
+                <AetherBar label="Rate" value={ratingPercent} />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             className="tron-btn tron-primary py-3 font-semibold"
             onClick={() => nav("/historial")}
@@ -331,47 +400,51 @@ export default function InterpreterDashboard() {
       </div>
 
       {/* DISPONIBLES */}
-      <div className="grid gap-3">
-        <div className="tron-card p-4 md:p-5">
-          <div className="text-xl font-semibold">💳 Solicitudes disponibles</div>
-          <div className="text-white/65 mt-1">
-            Servicios pagados que aún no tienen intérprete asignado.
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="aether-title">Available Requests</div>
+          <div className="aether-subtitle">
+            Servicios pagados que aún no tienen intérprete asignado
           </div>
         </div>
 
-        {available.length === 0 ? (
-          <div className="tron-card p-6 text-white/70">
-            No hay solicitudes pagadas disponibles por ahora.
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-3">
-            {available.map((s) => (
-              <Card key={s.id} s={s} showTake />
-            ))}
-          </div>
-        )}
+        <div className="p-4">
+          {available.length === 0 ? (
+            <div className="panel-mini text-white/70">
+              No hay solicitudes pagadas disponibles por ahora.
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {available.map((s) => (
+                <Card key={s.id} s={s} showTake />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* MIS SERVICIOS */}
-      <div className="grid gap-3">
-        <div className="tron-card p-4 md:p-5">
-          <div className="text-xl font-semibold">🤝 Mis servicios</div>
-          <div className="text-white/65 mt-1">
-            Servicios ya asignados para ti, manual o automáticamente.
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="aether-title">My Active Services</div>
+          <div className="aether-subtitle">
+            Servicios ya asignados para ti, manual o automáticamente
           </div>
         </div>
 
-        {mine.length === 0 ? (
-          <div className="tron-card p-6 text-white/70">
-            Aún no tienes servicios asignados.
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-3">
-            {mine.map((s) => (
-              <Card key={s.id} s={s} />
-            ))}
-          </div>
-        )}
+        <div className="p-4">
+          {mine.length === 0 ? (
+            <div className="panel-mini text-white/70">
+              Aún no tienes servicios asignados.
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {mine.map((s) => (
+                <Card key={s.id} s={s} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
