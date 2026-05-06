@@ -32,6 +32,36 @@ function calcPrice({ mode, serviceType, durationMin }) {
   return base + extraType + extraDuration;
 }
 
+function modeText(mode) {
+  return mode === "now" ? "⚡ Ahora" : mode === "schedule" ? "📅 Agenda" : "🎥 Video";
+}
+
+function typeText(type) {
+  return type === "tramite"
+    ? "🧾 Trámite"
+    : type === "reunion"
+    ? "👥 Reunión"
+    : type === "entrevista"
+    ? "💼 Entrevista"
+    : "🎤 Evento";
+}
+
+function zoneText(zone) {
+  return zone === "norte" ? "🌵 Norte" : zone === "centro" ? "🏙️ Centro" : "🌲 Sur";
+}
+
+function OptionButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`tron-btn font-semibold ${active ? "tron-primary" : ""}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Solicitud() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -84,7 +114,6 @@ export default function Solicitud() {
     try {
       setSubmitting(true);
 
-      // 1) Crear servicio
       const service = createService({
         clientId: user.id,
         clientName: user.fullName,
@@ -99,7 +128,6 @@ export default function Solicitud() {
         status: "created",
       });
 
-      // 2) Registrar pago demo
       createPayment({
         type: "service_request",
         refId: service.id,
@@ -111,23 +139,20 @@ export default function Solicitud() {
         note: "Pago demo de solicitud de intérprete",
       });
 
-      // 3) Marcar servicio como pagado
       updateService(service.id, {
         status: "paid",
         paidAt: Date.now(),
       });
 
-      // 4) Intentar auto asignar intérprete
       let assignedInterpreter = null;
 
       try {
         const result = autoAssignInterpreter(service.id);
         assignedInterpreter = result?.interpreter || null;
-      } catch (assignErr) {
+      } catch {
         console.log("Sin intérprete disponible para autoasignación");
       }
 
-      // 5) Mensaje final
       if (assignedInterpreter) {
         alert(
           `✅ Solicitud creada, pago registrado y asignada a ${assignedInterpreter.fullName}`
@@ -139,7 +164,7 @@ export default function Solicitud() {
       }
 
       nav("/usuario", { replace: true });
-    } catch (err) {
+    } catch {
       setError("❌ No se pudo crear la solicitud.");
     } finally {
       setSubmitting(false);
@@ -147,220 +172,238 @@ export default function Solicitud() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto grid gap-4">
-      <div className="tron-card p-6">
-        <div className="text-2xl font-semibold h-title">
-          🤟 Solicitar Intérprete
-        </div>
-        <div className="text-white/70 mt-2">
-          Completa los datos para crear tu solicitud en InterpreteYa.
+    <div className="max-w-5xl mx-auto grid gap-4">
+      {/* HEADER */}
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="aether-title">AETHER | SERVICE REQUEST</div>
+              <div className="aether-subtitle">
+                Solicitar intérprete · pago demo · asignación automática
+              </div>
+            </div>
+
+            <span className="aether-tag-ok">CLIENT SESSION</span>
+          </div>
         </div>
 
-        <div className="mt-4 tron-card p-4">
-          <div className="text-sm text-white/80">
-            👤 Cliente: <b>{user.fullName}</b>
+        <div className="p-4 grid md:grid-cols-[1fr_.8fr] gap-4">
+          <div className="aether-block">
+            <div className="aether-block-head">Client Data</div>
+            <div className="aether-block-body grid gap-2 text-sm text-white/75">
+              <div>👤 Cliente: <b>{user.fullName}</b></div>
+              <div>🪪 RUT: <b>{user.rut}</b></div>
+              <div>📡 Estado: <b>Preparando solicitud</b></div>
+            </div>
           </div>
-          <div className="text-xs text-white/55 mt-1">
-            🪪 RUT: {user.rut}
+
+          <div className="aether-block">
+            <div className="aether-block-head">Payment Preview</div>
+            <div className="aether-block-body">
+              <div className="text-3xl font-semibold h-title">
+                {moneyCLP(amountCLP)}
+              </div>
+              <div className="text-sm text-white/60 mt-2">
+                El pago se registrará en modo demo y luego se intentará asignar
+                intérprete automáticamente.
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="tron-card p-4 text-sm text-white/85">
-          {error}
+        <div className="aether-shell">
+          <div className="p-4 text-sm text-white/85">
+            {error}
+          </div>
         </div>
       )}
 
-      <div className="tron-card p-5 grid gap-4">
-        <div>
-          <div className="text-sm text-white/70 mb-2">⚡ Modalidad</div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              className={`tron-btn ${mode === "now" ? "tron-primary" : ""}`}
-              onClick={() => setMode("now")}
-            >
-              ⚡ Ahora
-            </button>
-
-            <button
-              type="button"
-              className={`tron-btn ${mode === "schedule" ? "tron-primary" : ""}`}
-              onClick={() => setMode("schedule")}
-            >
-              📅 Agenda
-            </button>
-
-            <button
-              type="button"
-              className={`tron-btn ${mode === "video" ? "tron-primary" : ""}`}
-              onClick={() => setMode("video")}
-            >
-              🎥 Video
-            </button>
+      {/* FORM */}
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="aether-title">Request Configuration</div>
+          <div className="aether-subtitle">
+            Define modalidad, tipo de servicio, zona y duración
           </div>
         </div>
 
-        <div>
-          <div className="text-sm text-white/70 mb-1">🧩 Tipo de servicio</div>
+        <div className="p-4 grid gap-4">
+          <div className="aether-block">
+            <div className="aether-block-head">Mode Selection</div>
+            <div className="aether-block-body grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <OptionButton active={mode === "now"} onClick={() => setMode("now")}>
+                ⚡ Ahora
+              </OptionButton>
 
-          <select
-            className="tron-select w-full"
-            value={serviceType}
-            onChange={(e) => setServiceType(e.target.value)}
-          >
-            <option value="tramite">🧾 Trámite</option>
-            <option value="reunion">👥 Reunión</option>
-            <option value="entrevista">💼 Entrevista</option>
-            <option value="evento">🎤 Evento</option>
-          </select>
-        </div>
+              <OptionButton
+                active={mode === "schedule"}
+                onClick={() => setMode("schedule")}
+              >
+                📅 Agenda
+              </OptionButton>
 
-        <div>
-          <div className="text-sm text-white/70 mb-1">📍 Zona</div>
-
-          <select
-            className="tron-select w-full"
-            value={zone}
-            onChange={(e) => setZone(e.target.value)}
-          >
-            <option value="norte">🌵 Norte</option>
-            <option value="centro">🏙️ Centro</option>
-            <option value="sur">🌲 Sur</option>
-          </select>
-        </div>
-
-        <div>
-          <div className="text-sm text-white/70 mb-1">⏱️ Duración estimada</div>
-
-          <select
-            className="tron-select w-full"
-            value={durationMin}
-            onChange={(e) => setDurationMin(e.target.value)}
-          >
-            <option value="30">30 minutos</option>
-            <option value="60">1 hora</option>
-            <option value="90">1 hora 30 min</option>
-            <option value="120">2 horas</option>
-          </select>
-        </div>
-
-        {mode === "schedule" && (
-          <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <div className="text-sm text-white/70 mb-1">📅 Fecha</div>
-              <input
-                type="date"
-                className="tron-input w-full"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <div className="text-sm text-white/70 mb-1">🕒 Hora</div>
-              <input
-                type="time"
-                className="tron-input w-full"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-              />
+              <OptionButton active={mode === "video"} onClick={() => setMode("video")}>
+                🎥 Video
+              </OptionButton>
             </div>
           </div>
-        )}
 
-        <div>
-          <div className="text-sm text-white/70 mb-1">📝 Descripción</div>
+          <div className="grid md:grid-cols-3 gap-3">
+            <div className="aether-block">
+              <div className="aether-block-head">Service Type</div>
+              <div className="aether-block-body">
+                <select
+                  className="tron-select w-full"
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value)}
+                >
+                  <option value="tramite">🧾 Trámite</option>
+                  <option value="reunion">👥 Reunión</option>
+                  <option value="entrevista">💼 Entrevista</option>
+                  <option value="evento">🎤 Evento</option>
+                </select>
+              </div>
+            </div>
 
-          <textarea
-            className="tron-input w-full"
-            rows={4}
-            placeholder="Ej: necesito intérprete para reunión médica, entrevista laboral, trámite, etc."
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
+            <div className="aether-block">
+              <div className="aether-block-head">Zone</div>
+              <div className="aether-block-body">
+                <select
+                  className="tron-select w-full"
+                  value={zone}
+                  onChange={(e) => setZone(e.target.value)}
+                >
+                  <option value="norte">🌵 Norte</option>
+                  <option value="centro">🏙️ Centro</option>
+                  <option value="sur">🌲 Sur</option>
+                </select>
+              </div>
+            </div>
 
-        <div className="tron-card p-4">
-          <div className="font-semibold">📌 Resumen</div>
-
-          <div className="text-sm text-white/75 mt-2">
-            Modalidad:{" "}
-            <b>
-              {mode === "now"
-                ? "⚡ Ahora"
-                : mode === "schedule"
-                ? "📅 Agenda"
-                : "🎥 Video"}
-            </b>
+            <div className="aether-block">
+              <div className="aether-block-head">Duration</div>
+              <div className="aether-block-body">
+                <select
+                  className="tron-select w-full"
+                  value={durationMin}
+                  onChange={(e) => setDurationMin(e.target.value)}
+                >
+                  <option value="30">30 minutos</option>
+                  <option value="60">1 hora</option>
+                  <option value="90">1 hora 30 min</option>
+                  <option value="120">2 horas</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="text-sm text-white/75 mt-1">
-            Tipo:{" "}
-            <b>
-              {serviceType === "tramite"
-                ? "🧾 Trámite"
-                : serviceType === "reunion"
-                ? "👥 Reunión"
-                : serviceType === "entrevista"
-                ? "💼 Entrevista"
-                : "🎤 Evento"}
-            </b>
-          </div>
+          {mode === "schedule" && (
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="aether-block">
+                <div className="aether-block-head">Scheduled Date</div>
+                <div className="aether-block-body">
+                  <input
+                    type="date"
+                    className="tron-input w-full"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                  />
+                </div>
+              </div>
 
-          <div className="text-sm text-white/75 mt-1">
-            Duración: <b>{durationMin} min</b>
-          </div>
-
-          <div className="text-sm text-white/75 mt-1">
-            Zona:{" "}
-            <b>
-              {zone === "norte"
-                ? "🌵 Norte"
-                : zone === "centro"
-                ? "🏙️ Centro"
-                : "🌲 Sur"}
-            </b>
-          </div>
-
-          {mode === "schedule" && scheduledAt && (
-            <div className="text-sm text-white/75 mt-1">
-              Fecha agendada: <b>{scheduledDate}</b> a las <b>{scheduledTime}</b>
+              <div className="aether-block">
+                <div className="aether-block-head">Scheduled Time</div>
+                <div className="aether-block-body">
+                  <input
+                    type="time"
+                    className="tron-input w-full"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="text-lg font-semibold mt-3">
-            💳 Precio estimado: {moneyCLP(amountCLP)}
-          </div>
-
-          <div className="text-xs text-white/55 mt-2">
-            Se registrará el pago demo e intentará asignar intérprete automáticamente.
+          <div className="aether-block">
+            <div className="aether-block-head">Description</div>
+            <div className="aether-block-body">
+              <textarea
+                className="tron-input w-full"
+                rows={4}
+                placeholder="Ej: necesito intérprete para reunión médica, entrevista laboral, trámite, etc."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className="tron-btn tron-muted py-3"
-            onClick={() => nav("/usuario")}
-            disabled={submitting}
-          >
-            ⬅️ Volver
-          </button>
+      {/* SUMMARY */}
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="aether-title">Request Summary</div>
+          <div className="aether-subtitle">Revisa antes de pagar y solicitar</div>
+        </div>
 
-          <button
-            type="button"
-            className={
-              "tron-btn tron-primary py-3 font-semibold " +
-              (submitting ? "opacity-70 cursor-not-allowed" : "")
-            }
-            onClick={submit}
-            disabled={submitting}
-          >
-            {submitting ? "⏳ Enviando..." : "💳 Pagar y solicitar"}
-          </button>
+        <div className="p-4 grid md:grid-cols-[1fr_.8fr] gap-4">
+          <div className="aether-block">
+            <div className="aether-block-head">Summary Data</div>
+            <div className="aether-block-body grid gap-2 text-sm text-white/75">
+              <div>Modalidad: <b>{modeText(mode)}</b></div>
+              <div>Tipo: <b>{typeText(serviceType)}</b></div>
+              <div>Duración: <b>{durationMin} min</b></div>
+              <div>Zona: <b>{zoneText(zone)}</b></div>
+
+              {mode === "schedule" && scheduledAt && (
+                <div>
+                  Fecha agendada: <b>{scheduledDate}</b> a las{" "}
+                  <b>{scheduledTime}</b>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="aether-block">
+            <div className="aether-block-head">Payment Confirmation</div>
+            <div className="aether-block-body">
+              <div className="text-3xl font-semibold h-title">
+                💳 {moneyCLP(amountCLP)}
+              </div>
+
+              <div className="text-xs text-white/55 mt-3">
+                Se registrará el pago demo e intentará asignar intérprete
+                automáticamente.
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="tron-btn tron-muted py-3"
+                  onClick={() => nav("/usuario")}
+                  disabled={submitting}
+                >
+                  ⬅️ Volver
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    "tron-btn tron-primary py-3 font-semibold " +
+                    (submitting ? "opacity-70 cursor-not-allowed" : "")
+                  }
+                  onClick={submit}
+                  disabled={submitting}
+                >
+                  {submitting ? "⏳ Enviando..." : "💳 Pagar y solicitar"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
