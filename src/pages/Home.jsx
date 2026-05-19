@@ -1,6 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { supabase } from "../lib/supabaseClient";
+console.log("SUPABASE:", supabase);
 
 function GlowTag({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -83,6 +86,18 @@ function MiniSignal({ label, value }) {
 
 export default function Home() {
   const nav = useNavigate();
+    useEffect(() => {
+    testConnection();
+  }, []);
+
+  async function testConnection() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*");
+
+    console.log("✅ SUPABASE DATA:", data);
+    console.log("❌ SUPABASE ERROR:", error);
+  }
   const { user } = useAuth();
   const outlet = useOutletContext() || {};
 
