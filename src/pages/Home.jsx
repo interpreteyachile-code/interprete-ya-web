@@ -290,14 +290,14 @@ export default function Home() {
           />
 
           <div className="p-4">
-            <div className="aether-glow-box p-2">
-              <div className="overflow-hidden rounded-xl border border-cyan-300/20 bg-black aspect-video">
+            <div className="media-frame">
+  <div className="media-screen aspect-video">
                 <video
                   className="w-full h-full object-cover"
                   controls
                   playsInline
                   preload="metadata"
-                  poster="/logo-interpreteya.png"
+                  poster="/Pronto.png"
                 >
                   <source src="/tutorial-interpreteya.mp4" type="video/mp4" />
                   Tu navegador no soporta video HTML5.
@@ -306,7 +306,7 @@ export default function Home() {
             </div>
 
             <div className="mt-3 text-xs text-white/55">
-              Guarda tu video principal en <b>public/tutorial-interpreteya.mp4</b>
+              P<b>ronto...</b>
             </div>
           </div>
         </div>
@@ -319,14 +319,14 @@ export default function Home() {
           />
 
           <div className="p-4 grid gap-3">
-            <div className="aether-glow-box p-2">
-              <div className="overflow-hidden rounded-xl border border-cyan-300/20 bg-black aspect-video">
+            <div className="media-frame">
+  <div className="media-screen aspect-video">
                 <video
                   className="w-full h-full object-cover"
                   controls
                   playsInline
                   preload="metadata"
-                  poster="/logo-interpreteya.png"
+                  poster="/banner-bienvenido.png"
                 >
                   <source src="/bienvenido-interpreteya.mp4" type="video/mp4" />
                   Tu navegador no soporta video HTML5.
