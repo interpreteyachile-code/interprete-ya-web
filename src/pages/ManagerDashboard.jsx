@@ -1,9 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { listUsers, updateUserStatus } from "../data/demoStore";
-import { listServices, updateService } from "../data/servicesStore";
-import { getPaymentsByRefId } from "../data/paymentsStore";
+import { supabase } from "../lib/supabaseClient";
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -75,11 +73,7 @@ function statusServiceLabel(status) {
 }
 
 function modeLabel(mode) {
-  return mode === "video"
-    ? "🎥 Video"
-    : mode === "schedule"
-    ? "📅 Agenda"
-    : "⚡ Ahora";
+  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
 }
 
 function specialtyLabel(specialty) {
@@ -94,11 +88,41 @@ function specialtyLabel(specialty) {
     : "🧩 General";
 }
 
+function mapProfile(u) {
+  return {
+    ...u,
+    fullName: u.full_name || u.fullName || "",
+    profileType: u.profile_type || u.profileType || "user",
+    interpreterProfile: u.interpreter_profile || u.interpreterProfile || null,
+    createdAt: u.created_at || u.createdAt || 0,
+  };
+}
+
+function mapService(s) {
+  return {
+    ...s,
+    clientName: s.client_name || s.clientName || "",
+    interpreterName: s.interpreter_name || s.interpreterName || "",
+    amountCLP: s.amount_clp ?? s.amountCLP ?? 0,
+    startCode: s.start_code || s.startCode || "",
+    endCode: s.end_code || s.endCode || "",
+    createdAt: s.created_at || s.createdAt || 0,
+  };
+}
+
+function mapPayment(p) {
+  return {
+    ...p,
+    userName: p.user_name || p.userName || "",
+    amountCLP: p.amount_clp ?? p.amountCLP ?? 0,
+    createdAt: p.created_at || p.createdAt || 0,
+  };
+}
+
 export default function ManagerDashboard() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const [tick, setTick] = useState(0);
   const [tab, setTab] = useState("accounts");
   const [q, setQ] = useState("");
 
@@ -108,21 +132,75 @@ export default function ManagerDashboard() {
   const [svcStatus, setSvcStatus] = useState("all");
   const [svcMode, setSvcMode] = useState("all");
 
+  const [accountsData, setAccountsData] = useState([]);
+  const [servicesData, setServicesData] = useState([]);
+  const [paymentsData, setPaymentsData] = useState([]);
+
   const [selectedService, setSelectedService] = useState(null);
   const [selectedInterpreterId, setSelectedInterpreterId] = useState("");
 
   const isLogged = !!user;
   const isManager = user?.role === "manager";
 
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  async function loadAll() {
+    await Promise.all([loadProfiles(), loadServices(), loadPayments()]);
+  }
+
+  async function loadProfiles() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("profiles error:", error);
+      return;
+    }
+
+    setAccountsData((data || []).map(mapProfile));
+  }
+
+  async function loadServices() {
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("services error:", error);
+      return;
+    }
+
+    setServicesData((data || []).map(mapService));
+  }
+
+  async function loadPayments() {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("payments error:", error);
+      return;
+    }
+
+    setPaymentsData((data || []).map(mapPayment));
+  }
+
   const allClients = useMemo(() => {
-    return listUsers().filter((u) => u.role !== "manager");
-  }, [tick]);
+    return accountsData.filter((u) => u.role !== "manager");
+  }, [accountsData]);
 
   const activeInterpreters = useMemo(() => {
-    return listUsers().filter(
+    return accountsData.filter(
       (u) => u.profileType === "interpreter" && u.status === "active"
     );
-  }, [tick]);
+  }, [accountsData]);
 
   const accounts = useMemo(() => {
     const query = (q || "").trim().toLowerCase();
@@ -137,8 +215,7 @@ export default function ManagerDashboard() {
           (u.rut || "").toLowerCase().includes(query) ||
           (u.email || "").toLowerCase().includes(query)
         );
-      })
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      });
   }, [allClients, q, accStatus, accType]);
 
   const accCounts = useMemo(() => {
@@ -152,8 +229,8 @@ export default function ManagerDashboard() {
   }, [allClients]);
 
   const allServices = useMemo(() => {
-    return [...listServices()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [tick]);
+    return servicesData;
+  }, [servicesData]);
 
   const services = useMemo(() => {
     const query = (q || "").trim().toLowerCase();
@@ -181,55 +258,78 @@ export default function ManagerDashboard() {
       finished: by("finished"),
       paid: by("paid"),
       rated: by("rated"),
-      waitingAssign: allServices.filter((s) => s.status === "paid" && !s.interpreterId).length,
+      waitingAssign: allServices.filter((s) => s.status === "paid" && !s.interpreter_id).length,
     };
   }, [allServices]);
 
   const selectedServicePayments = useMemo(() => {
     if (!selectedService?.id) return [];
-    return getPaymentsByRefId(selectedService.id);
-  }, [selectedService]);
+    return paymentsData.filter((p) => p.ref_id === selectedService.id);
+  }, [selectedService, paymentsData]);
 
   const selectedServicePayment = useMemo(() => {
     if (!selectedServicePayments.length) return null;
     return [...selectedServicePayments].sort(
-      (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     )[0];
   }, [selectedServicePayments]);
 
   if (!isLogged) {
-    return (
-      <div className="tron-card p-6 max-w-xl mx-auto">
-        🔒 Debes iniciar sesión.
-      </div>
-    );
+    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Debes iniciar sesión.</div>;
   }
 
   if (!isManager) {
-    return (
-      <div className="tron-card p-6 max-w-xl mx-auto">
-        🔒 Solo gerente.
-      </div>
-    );
+    return <div className="tron-card p-6 max-w-xl mx-auto">🔒 Solo gerente.</div>;
   }
 
-  const setAccountStatus = (id, status) => {
-    updateUserStatus(id, status);
-    setTick((x) => x + 1);
+  const setAccountStatus = async (id, status) => {
+    const { error } = await supabase.from("profiles").update({ status }).eq("id", id);
+
+    if (error) {
+      console.log(error);
+      alert("❌ Error actualizando usuario");
+      return;
+    }
+
+    await loadProfiles();
+    alert("✅ Estado actualizado");
   };
 
-  const setServicePatch = (id, patch) => {
-    const next = updateService(id, patch);
+  const setServicePatch = async (id, patch) => {
+    const dbPatch = {};
+
+    if (patch.status !== undefined) dbPatch.status = patch.status;
+    if (patch.finishedAt !== undefined) dbPatch.finished_at = new Date(patch.finishedAt).toISOString();
+    if (patch.paidAt !== undefined) dbPatch.paid_at = new Date(patch.paidAt).toISOString();
+    if (patch.ratedAt !== undefined) dbPatch.rated_at = new Date(patch.ratedAt).toISOString();
+    if (patch.rating !== undefined) dbPatch.rating = patch.rating;
+    if (patch.interpreterId !== undefined) dbPatch.interpreter_id = patch.interpreterId;
+    if (patch.interpreterName !== undefined) dbPatch.interpreter_name = patch.interpreterName;
+
+    const { data, error } = await supabase
+      .from("services")
+      .update(dbPatch)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.log(error);
+      alert("❌ Error actualizando servicio");
+      return;
+    }
+
+    const next = mapService(data);
     setSelectedService((s) => (s && s.id === id ? next : s));
-    setTick((x) => x + 1);
+    await loadServices();
   };
 
   const openService = (service) => {
     setSelectedService(service);
-    setSelectedInterpreterId(service?.interpreterId || "");
+    setSelectedInterpreterId(service?.interpreter_id || "");
   };
 
-  const assignInterpreter = () => {
+  const assignInterpreter = async () => {
     if (!selectedService) return;
 
     if (!selectedInterpreterId) {
@@ -237,29 +337,24 @@ export default function ManagerDashboard() {
       return;
     }
 
-    const selectedInterpreter = activeInterpreters.find(
-      (i) => i.id === selectedInterpreterId
-    );
+    const selectedInterpreter = activeInterpreters.find((i) => i.id === selectedInterpreterId);
 
     if (!selectedInterpreter) {
       alert("No se encontró el intérprete seleccionado.");
       return;
     }
 
-    const next = updateService(selectedService.id, {
+    await setServicePatch(selectedService.id, {
       interpreterId: selectedInterpreter.id,
       interpreterName: selectedInterpreter.fullName,
       status: "matched",
     });
 
-    setSelectedService(next);
-    setTick((x) => x + 1);
     alert("✅ Intérprete asignado correctamente");
   };
 
   return (
     <div className="grid gap-4">
-      {/* HEADER AETHER */}
       <div className="tron-card p-5 md:p-6">
         <div className="panel-head">
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -268,7 +363,7 @@ export default function ManagerDashboard() {
                 AETHER | PANEL GERENTE
               </div>
               <div className="text-white/70 mt-2">
-                Centro operativo de cuentas, servicios y pagos del sistema.
+                Centro operativo real conectado a Supabase.
               </div>
             </div>
 
@@ -280,7 +375,6 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        {/* MÉTRICAS */}
         <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <MetricCard label="Pending accounts" value={accCounts.pending} hint="Cuentas por revisar" />
           <MetricCard label="Active accounts" value={accCounts.active} hint="Cuentas habilitadas" />
@@ -291,27 +385,21 @@ export default function ManagerDashboard() {
 
         <div className="mt-4 glow-line" />
 
-        {/* NAV OPERATIVA */}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
-            onClick={() => setTab("accounts")}
-          >
+          <button className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")} onClick={() => setTab("accounts")}>
             👤 Cuentas
           </button>
 
-          <button
-            className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")}
-            onClick={() => setTab("services")}
-          >
+          <button className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")} onClick={() => setTab("services")}>
             🧾 Servicios
           </button>
 
-          <button
-            className="tron-btn px-4 py-2"
-            onClick={() => nav("/gerente/pagos")}
-          >
+          <button className="tron-btn px-4 py-2" onClick={() => nav("/gerente/pagos")}>
             💳 Ver pagos
+          </button>
+
+          <button className="tron-btn px-4 py-2" onClick={loadAll}>
+            🔄 Actualizar
           </button>
 
           <div className="flex-1" />
@@ -325,7 +413,6 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* CUENTAS */}
       {tab === "accounts" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
@@ -334,22 +421,14 @@ export default function ManagerDashboard() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-2">
-              <select
-                className="tron-select"
-                value={accStatus}
-                onChange={(e) => setAccStatus(e.target.value)}
-              >
+              <select className="tron-select" value={accStatus} onChange={(e) => setAccStatus(e.target.value)}>
                 <option value="pending">⏳ Pendientes</option>
                 <option value="active">✅ Activos</option>
                 <option value="rejected">⛔ Rechazados</option>
                 <option value="all">🧩 Todos</option>
               </select>
 
-              <select
-                className="tron-select"
-                value={accType}
-                onChange={(e) => setAccType(e.target.value)}
-              >
+              <select className="tron-select" value={accType} onChange={(e) => setAccType(e.target.value)}>
                 <option value="all">🧩 Tipo: Todos</option>
                 <option value="user">🧏‍♀️ Usuario</option>
                 <option value="interpreter">🧑‍💼 Intérprete</option>
@@ -369,9 +448,7 @@ export default function ManagerDashboard() {
           </div>
 
           {accounts.length === 0 ? (
-            <div className="tron-card p-6 text-white/70">
-              No hay resultados.
-            </div>
+            <div className="tron-card p-6 text-white/70">No hay resultados.</div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {accounts.map((u) => (
@@ -393,7 +470,6 @@ export default function ManagerDashboard() {
                   {u.profileType === "interpreter" && u.interpreterProfile && (
                     <div className="panel-mini mt-3">
                       <div className="panel-label">Interpreter profile</div>
-
                       <div className="text-xs text-white/75 mt-3">
                         📜 Certificación: <b>{u.interpreterProfile.certification || "—"}</b>
                       </div>
@@ -403,36 +479,21 @@ export default function ManagerDashboard() {
                       <div className="text-xs text-white/75 mt-1">
                         🧩 Especialidad: <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
                       </div>
-
-                      {u.interpreterProfile.note && (
-                        <div className="text-xs text-white/60 mt-2">
-                          📝 {u.interpreterProfile.note}
-                        </div>
-                      )}
                     </div>
                   )}
 
                   {u.status === "pending" ? (
                     <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        className="tron-btn tron-primary font-semibold py-3"
-                        onClick={() => setAccountStatus(u.id, "active")}
-                      >
+                      <button className="tron-btn tron-primary font-semibold py-3" onClick={() => setAccountStatus(u.id, "active")}>
                         ✅ Aprobar
                       </button>
 
-                      <button
-                        className="tron-btn tron-danger font-semibold py-3"
-                        onClick={() => setAccountStatus(u.id, "rejected")}
-                      >
+                      <button className="tron-btn tron-danger font-semibold py-3" onClick={() => setAccountStatus(u.id, "rejected")}>
                         ⛔ Rechazar
                       </button>
                     </div>
                   ) : (
-                    <button
-                      className="tron-btn tron-muted w-full font-semibold py-3 mt-4"
-                      onClick={() => setAccountStatus(u.id, "pending")}
-                    >
+                    <button className="tron-btn tron-muted w-full font-semibold py-3 mt-4" onClick={() => setAccountStatus(u.id, "pending")}>
                       ↩️ Volver a Pendiente
                     </button>
                   )}
@@ -443,7 +504,6 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {/* SERVICIOS */}
       {tab === "services" && (
         <div className="grid gap-3">
           <div className="tron-card p-5">
@@ -452,11 +512,7 @@ export default function ManagerDashboard() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-2">
-              <select
-                className="tron-select"
-                value={svcStatus}
-                onChange={(e) => setSvcStatus(e.target.value)}
-              >
+              <select className="tron-select" value={svcStatus} onChange={(e) => setSvcStatus(e.target.value)}>
                 <option value="all">🧩 Estado: Todos</option>
                 <option value="created">🧾 Creado</option>
                 <option value="matched">🤝 Conectado</option>
@@ -466,11 +522,7 @@ export default function ManagerDashboard() {
                 <option value="rated">⭐ Evaluado</option>
               </select>
 
-              <select
-                className="tron-select"
-                value={svcMode}
-                onChange={(e) => setSvcMode(e.target.value)}
-              >
+              <select className="tron-select" value={svcMode} onChange={(e) => setSvcMode(e.target.value)}>
                 <option value="all">🧩 Modo: Todos</option>
                 <option value="now">⚡ Ahora</option>
                 <option value="schedule">📅 Agenda</option>
@@ -491,17 +543,11 @@ export default function ManagerDashboard() {
           </div>
 
           {services.length === 0 ? (
-            <div className="tron-card p-6 text-white/70">
-              No hay servicios con esos filtros.
-            </div>
+            <div className="tron-card p-6 text-white/70">No hay servicios con esos filtros.</div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {services.map((s) => (
-                <button
-                  key={s.id}
-                  className="tron-btn w-full text-left"
-                  onClick={() => openService(s)}
-                >
+                <button key={s.id} className="tron-btn w-full text-left" onClick={() => openService(s)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold">
@@ -517,9 +563,7 @@ export default function ManagerDashboard() {
                       </div>
                     </div>
 
-                    <Chip>
-                      {s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}
-                    </Chip>
+                    <Chip>{s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}</Chip>
                   </div>
                 </button>
               ))}
@@ -547,7 +591,6 @@ export default function ManagerDashboard() {
                 {selectedServicePayment ? (
                   <div className="panel-mini mt-4">
                     <div className="panel-label">Payment overview</div>
-
                     <div className="text-sm text-white/75 mt-3">
                       Estado: <b>{selectedServicePayment.status || "—"}</b>
                     </div>
@@ -560,15 +603,6 @@ export default function ManagerDashboard() {
                     <div className="text-sm text-white/75 mt-1">
                       Monto: <b>{moneyCLP(selectedServicePayment.amountCLP)}</b>
                     </div>
-                    <div className="text-sm text-white/60 mt-1">
-                      Fecha: {new Date(selectedServicePayment.createdAt).toLocaleString("es-CL")}
-                    </div>
-
-                    {selectedServicePayment.note && (
-                      <div className="text-sm text-white/55 mt-2">
-                        📝 {selectedServicePayment.note}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="panel-mini mt-4 text-white/70">
@@ -582,11 +616,7 @@ export default function ManagerDashboard() {
                   </div>
 
                   <div className="grid md:grid-cols-[1fr_auto] gap-2">
-                    <select
-                      className="tron-select"
-                      value={selectedInterpreterId}
-                      onChange={(e) => setSelectedInterpreterId(e.target.value)}
-                    >
+                    <select className="tron-select" value={selectedInterpreterId} onChange={(e) => setSelectedInterpreterId(e.target.value)}>
                       <option value="">Selecciona intérprete activo</option>
                       {activeInterpreters.map((i) => (
                         <option key={i.id} value={i.id}>
@@ -595,16 +625,9 @@ export default function ManagerDashboard() {
                       ))}
                     </select>
 
-                    <button
-                      className="tron-btn tron-primary px-4 py-3 font-semibold"
-                      onClick={assignInterpreter}
-                    >
+                    <button className="tron-btn tron-primary px-4 py-3 font-semibold" onClick={assignInterpreter}>
                       ✅ Asignar
                     </button>
-                  </div>
-
-                  <div className="text-xs text-white/55 mt-2">
-                    Al asignar, el servicio pasa a estado <b>matched</b>.
                   </div>
                 </div>
 
@@ -616,12 +639,7 @@ export default function ManagerDashboard() {
 
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold"
-                      onClick={() =>
-                        window.open(
-                          `https://meet.jit.si/InterpreteYa-${selectedService.id}`,
-                          "_blank"
-                        )
-                      }
+                      onClick={() => window.open(`https://meet.jit.si/InterpreteYa-${selectedService.id}`, "_blank")}
                     >
                       🎥 Abrir videollamada
                     </button>
@@ -631,40 +649,15 @@ export default function ManagerDashboard() {
                 <div className="mt-4 glow-line" />
 
                 <div className="mt-4 grid md:grid-cols-3 gap-2">
-                  <button
-                    className="tron-btn tron-muted font-semibold py-3"
-                    onClick={() =>
-                      setServicePatch(selectedService.id, {
-                        status: "finished",
-                        finishedAt: Date.now(),
-                      })
-                    }
-                  >
+                  <button className="tron-btn tron-muted font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "finished", finishedAt: Date.now() })}>
                     🏁 Marcar Finalizado
                   </button>
 
-                  <button
-                    className="tron-btn tron-primary font-semibold py-3"
-                    onClick={() =>
-                      setServicePatch(selectedService.id, {
-                        status: "paid",
-                        paidAt: Date.now(),
-                      })
-                    }
-                  >
+                  <button className="tron-btn tron-primary font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "paid", paidAt: Date.now() })}>
                     💳 Marcar Pagado
                   </button>
 
-                  <button
-                    className="tron-btn font-semibold py-3"
-                    onClick={() =>
-                      setServicePatch(selectedService.id, {
-                        status: "rated",
-                        ratedAt: Date.now(),
-                        rating: 5,
-                      })
-                    }
-                  >
+                  <button className="tron-btn font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "rated", ratedAt: Date.now(), rating: 5 })}>
                     ⭐ Marcar Evaluado
                   </button>
                 </div>

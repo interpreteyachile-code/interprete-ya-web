@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { listServices } from "../data/servicesStore";
+import { supabase } from "../lib/supabaseClient";
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -30,11 +30,7 @@ function statusLabel(status) {
 }
 
 function modeLabel(mode) {
-  return mode === "video"
-    ? "🎥 Video"
-    : mode === "schedule"
-    ? "📅 Agenda"
-    : "⚡ Ahora";
+  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
 }
 
 function serviceTypeLabel(type) {
@@ -50,46 +46,18 @@ function serviceTypeLabel(type) {
 }
 
 function zoneLabel(zone) {
-  return zone === "norte"
-    ? "🌵 Norte"
-    : zone === "sur"
-    ? "🌲 Sur"
-    : "🏙️ Centro";
+  return zone === "norte" ? "🌵 Norte" : zone === "sur" ? "🌲 Sur" : "🏙️ Centro";
 }
 
 function flowMessage(service) {
-  if (service.status === "created") {
-    return "🧾 Solicitud creada en el sistema.";
-  }
-
-  if (service.status === "paid" && !service.interpreterId) {
-    return "💳 Pago confirmado. Buscando intérprete disponible...";
-  }
-
-  if (service.status === "paid" && service.interpreterId) {
-    return `✅ Pago confirmado. Intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
-  }
-
-  if (service.status === "matched") {
-    return `🤝 Ya tienes intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
-  }
-
-  if (service.status === "started") {
-    return `🔳 El servicio está en curso con ${service.interpreterName || "tu intérprete"}.`;
-  }
-
-  if (service.status === "finished") {
-    return "🏁 El servicio finalizó correctamente. Ya puedes calificar.";
-  }
-
-  if (service.status === "rated") {
-    return "⭐ Ya evaluaste este servicio. Gracias por aportar a la comunidad.";
-  }
-
-  if (service.status === "cancelled") {
-    return "⛔ Este servicio fue cancelado.";
-  }
-
+  if (service.status === "created") return "🧾 Solicitud creada en el sistema.";
+  if (service.status === "paid" && !service.interpreterId) return "💳 Pago confirmado. Buscando intérprete disponible...";
+  if (service.status === "paid" && service.interpreterId) return `✅ Pago confirmado. Intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
+  if (service.status === "matched") return `🤝 Ya tienes intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
+  if (service.status === "started") return `🔳 El servicio está en curso con ${service.interpreterName || "tu intérprete"}.`;
+  if (service.status === "finished") return "🏁 El servicio finalizó correctamente. Ya puedes calificar.";
+  if (service.status === "rated") return "⭐ Ya evaluaste este servicio. Gracias por aportar a la comunidad.";
+  if (service.status === "cancelled") return "⛔ Este servicio fue cancelado.";
   return "ℹ️ Estado actualizado.";
 }
 
@@ -118,17 +86,59 @@ function AetherBar({ label, value }) {
   );
 }
 
+function mapService(s) {
+  return {
+    ...s,
+    clientId: s.client_id,
+    clientRut: s.client_rut,
+    clientName: s.client_name,
+    interpreterId: s.interpreter_id,
+    interpreterName: s.interpreter_name,
+    serviceType: s.service_type,
+    durationMin: s.duration_min,
+    scheduledAt: s.scheduled_at,
+    amountCLP: s.amount_clp,
+    paidAt: s.paid_at,
+    startCode: s.start_code,
+    endCode: s.end_code,
+    startedAt: s.started_at,
+    finishedAt: s.finished_at,
+    ratedAt: s.rated_at,
+    createdAt: s.created_at,
+  };
+}
+
 export default function UserDashboard() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const my = useMemo(() => {
-    const all = listServices();
+  const [my, setMy] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    return all
-      .filter((s) => s.clientRut === user?.rut)
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [user?.rut]);
+  useEffect(() => {
+    loadMyServices();
+  }, [user?.id, user?.rut]);
+
+  async function loadMyServices() {
+    if (!user?.id && !user?.rut) return;
+
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .or(`client_id.eq.${user.id},client_rut.eq.${user.rut}`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("UserDashboard services error:", error);
+      setMy([]);
+    } else {
+      setMy((data || []).map(mapService));
+    }
+
+    setLoading(false);
+  }
 
   const counts = useMemo(() => {
     return {
@@ -147,10 +157,7 @@ export default function UserDashboard() {
       <div className="tron-card p-6 max-w-xl mx-auto">
         🔒 Debes iniciar sesión.
         <div className="mt-3">
-          <button
-            className="tron-btn tron-primary"
-            onClick={() => nav("/login")}
-          >
+          <button className="tron-btn tron-primary" onClick={() => nav("/login")}>
             🔐 Login
           </button>
         </div>
@@ -165,14 +172,13 @@ export default function UserDashboard() {
 
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="aether-shell">
         <div className="aether-header">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="aether-title">AETHER | CLIENT RECORDS</div>
+              <div className="aether-title">🤟 Panel Usuario</div>
               <div className="aether-subtitle">
-                User dashboard · service tracking center
+                Solicitudes reales conectadas a Supabase
               </div>
             </div>
 
@@ -187,74 +193,63 @@ export default function UserDashboard() {
         <div className="p-4 grid lg:grid-cols-[1.3fr_.7fr] gap-4">
           <div className="grid gap-4">
             <div className="aether-block">
-              <div className="aether-block-head">Active Data Streams</div>
+              <div className="aether-block-head">Datos activos</div>
               <div className="aether-block-body">
                 <div className="aether-wave" />
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <MetricCard label="Requests" value={counts.total} hint="Total registradas" />
-              <MetricCard label="Paid" value={counts.paid} hint="Pagos confirmados" />
-              <MetricCard label="Active" value={counts.matched + counts.started} hint="Asignadas / en curso" />
-              <MetricCard label="Done" value={counts.finished + counts.rated} hint="Finalizadas / evaluadas" />
+              <MetricCard label="Solicitudes" value={counts.total} hint="Total registradas" />
+              <MetricCard label="Pagadas" value={counts.paid} hint="Pagos confirmados" />
+              <MetricCard label="Activas" value={counts.matched + counts.started} hint="Asignadas / en curso" />
+              <MetricCard label="Finalizadas" value={counts.finished + counts.rated} hint="Finalizadas / evaluadas" />
             </div>
           </div>
 
           <div className="aether-block">
-            <div className="aether-block-head">System Overview</div>
+            <div className="aether-block-head">Resumen del sistema</div>
             <div className="aether-block-body">
               <div className="aether-statbars">
-                <AetherBar label="Created" value={createdPercent} />
-                <AetherBar label="Active" value={activePercent} />
-                <AetherBar label="Done" value={completedPercent} />
+                <AetherBar label="Creadas" value={createdPercent} />
+                <AetherBar label="Activas" value={activePercent} />
+                <AetherBar label="Listas" value={completedPercent} />
               </div>
             </div>
           </div>
         </div>
 
         <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <button
-            className="tron-btn tron-primary py-3 font-semibold"
-            onClick={() => nav("/solicitud")}
-          >
+          <button className="tron-btn tron-primary py-3 font-semibold" onClick={() => nav("/solicitud")}>
             ➕ Nueva Solicitud
           </button>
 
-          <button
-            className="tron-btn py-3 font-semibold"
-            onClick={() => nav("/pagos")}
-          >
+          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/pagos")}>
             💳 Mis pagos
           </button>
 
-          <button
-            className="tron-btn py-3 font-semibold"
-            onClick={() => nav("/historial")}
-          >
+          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/historial")}>
             📜 Historial
           </button>
 
-          <button
-            className="tron-btn py-3 font-semibold"
-            onClick={() => nav("/cursos")}
-          >
+          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/cursos")}>
             🎓 Cursos LSCh
           </button>
         </div>
       </div>
 
-      {/* LISTA */}
       <div className="aether-shell">
         <div className="aether-header">
-          <div className="aether-title">Service History</div>
+          <div className="aether-title">📚 Mis solicitudes</div>
           <div className="aether-subtitle">
             Seguimiento de solicitudes, pagos y servicios en vivo
           </div>
         </div>
 
         <div className="p-4">
-          {my.length === 0 ? (
+          {loading ? (
+            <div className="panel-mini text-white/70">Cargando solicitudes...</div>
+          ) : my.length === 0 ? (
             <div className="panel-mini text-white/70">
               Aún no tienes solicitudes creadas.
             </div>
@@ -279,15 +274,10 @@ export default function UserDashboard() {
 
                   <div className="p-4 grid gap-3">
                     <div className="aether-block">
-                      <div className="aether-block-head">Service Data</div>
+                      <div className="aether-block-head">Datos del servicio</div>
                       <div className="aether-block-body grid gap-1 text-sm text-white/75">
-                        <div>
-                          💳 Precio: <b>{moneyCLP(s.amountCLP)}</b>
-                        </div>
-
-                        <div>
-                          ⏱️ Duración: <b>{s.durationMin || 30} min</b>
-                        </div>
+                        <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
+                        <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
 
                         {s.scheduledAt && (
                           <div>
@@ -302,7 +292,7 @@ export default function UserDashboard() {
                     </div>
 
                     <div className="aether-block">
-                      <div className="aether-block-head">Live Status</div>
+                      <div className="aether-block-head">Estado en vivo</div>
                       <div className="aether-block-body text-sm text-white/80">
                         {flowMessage(s)}
                       </div>
@@ -335,6 +325,13 @@ export default function UserDashboard() {
                           ⭐ Calificar servicio
                         </button>
                       )}
+
+                      <button
+                        className="tron-btn tron-muted w-full py-3 font-semibold"
+                        onClick={loadMyServices}
+                      >
+                        🔄 Actualizar
+                      </button>
                     </div>
                   </div>
                 </div>

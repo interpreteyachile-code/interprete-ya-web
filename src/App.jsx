@@ -41,28 +41,16 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 function RedirectByRole() {
   const rawUser = localStorage.getItem("iy_session_v1");
 
-  if (!rawUser) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!rawUser) return <Navigate to="/login" replace />;
 
   try {
     const user = JSON.parse(rawUser);
 
-    if (user?.status !== "active") {
-      return <Navigate to="/pending" replace />;
-    }
+    if (user?.status !== "active") return <Navigate to="/pending" replace />;
 
-    if (user?.role === "manager") {
-      return <Navigate to="/gerente" replace />;
-    }
-
-    if (user?.profileType === "interpreter") {
-      return <Navigate to="/interprete" replace />;
-    }
-
-    if (user?.profileType === "user") {
-      return <Navigate to="/usuario" replace />;
-    }
+    if (user?.role === "manager") return <Navigate to="/gerente" replace />;
+    if (user?.profileType === "interpreter") return <Navigate to="/interprete" replace />;
+    if (user?.profileType === "user") return <Navigate to="/usuario" replace />;
 
     return <Navigate to="/" replace />;
   } catch {
@@ -75,9 +63,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          {/* =========================
-              RUTAS PÚBLICAS
-          ========================= */}
+          {/* Públicas */}
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
@@ -85,22 +71,15 @@ function App() {
           <Route path="/interpretes" element={<InterpretesDisponibles />} />
           <Route path="/mapa" element={<MapaInterpretes />} />
 
-          {/* =========================
-              AUTH / INGRESO
-          ========================= */}
+          {/* Auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/pending" element={<Pending />} />
           <Route path="/g/login" element={<LoginGerente />} />
-          <Route
-            path="/login-gerente"
-            element={<Navigate to="/g/login" replace />}
-          />
+          <Route path="/login-gerente" element={<Navigate to="/g/login" replace />} />
           <Route path="/panel" element={<RedirectByRole />} />
 
-          {/* =========================
-              FLUJO SERVICIO
-          ========================= */}
+          {/* Servicio */}
           <Route
             path="/video/:roomId"
             element={
@@ -109,6 +88,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/calificar/:serviceId"
             element={
@@ -117,6 +97,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/historial"
             element={
@@ -126,9 +107,7 @@ function App() {
             }
           />
 
-          {/* =========================
-              USUARIO CLIENTE
-          ========================= */}
+          {/* Usuario */}
           <Route
             path="/solicitud"
             element={
@@ -141,6 +120,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/usuario"
             element={
@@ -153,6 +133,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/pagos"
             element={
@@ -166,9 +147,7 @@ function App() {
             }
           />
 
-          {/* =========================
-              INTÉRPRETE
-          ========================= */}
+          {/* Intérprete */}
           <Route
             path="/interprete"
             element={
@@ -182,9 +161,7 @@ function App() {
             }
           />
 
-          {/* =========================
-              COMPARTIDAS / GENERALES
-          ========================= */}
+          {/* Compartidas */}
           <Route
             path="/cursos"
             element={
@@ -193,47 +170,39 @@ function App() {
               </ProtectedRoute>
             }
           />
-       <Route
-  path="/denuncias"
-  element={
-    <ProtectedRoute
-      allowRoles={["manager", "client"]}
-      requireStatus="active"
-    >
-      <Denuncias />
-    </ProtectedRoute>
-  }
-/>
 
-          {/* =========================
-              GERENTE
-          ========================= */}
+          <Route
+            path="/denuncias"
+            element={
+              <ProtectedRoute
+                allowRoles={["manager", "client"]}
+                requireStatus="active"
+              >
+                <Denuncias />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Gerente */}
           <Route
             path="/gerente"
             element={
-              <ProtectedRoute
-                allowRoles={["manager"]}
-                requireStatus="active"
-              >
+              <ProtectedRoute allowRoles={["manager"]} requireStatus="active">
                 <ManagerDashboard />
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/gerente/pagos"
             element={
-              <ProtectedRoute
-                allowRoles={["manager"]}
-                requireStatus="active"
-              >
+              <ProtectedRoute allowRoles={["manager"]} requireStatus="active">
                 <GestionPagos />
               </ProtectedRoute>
             }
           />
 
-          {/* =========================
-              FALLBACK
-          ========================= */}
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

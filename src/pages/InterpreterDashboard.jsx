@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { listServices, updateService } from "../data/servicesStore";
-import { getInterpreterRating } from "../data/ratingsStore";
+import { supabase } from "../lib/supabaseClient";
 
 function Chip({ children }) {
   return <span className="tron-chip">{children}</span>;
@@ -31,11 +30,7 @@ function statusLabel(status) {
 }
 
 function modeLabel(mode) {
-  return mode === "video"
-    ? "🎥 Video"
-    : mode === "schedule"
-    ? "📅 Agenda"
-    : "⚡ Ahora";
+  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
 }
 
 function serviceTypeLabel(type) {
@@ -51,11 +46,7 @@ function serviceTypeLabel(type) {
 }
 
 function zoneLabel(zone) {
-  return zone === "norte"
-    ? "🌵 Norte"
-    : zone === "sur"
-    ? "🌲 Sur"
-    : "🏙️ Centro";
+  return zone === "norte" ? "🌵 Norte" : zone === "sur" ? "🌲 Sur" : "🏙️ Centro";
 }
 
 function flowMessage(service, user) {
@@ -116,14 +107,77 @@ function roleLabel(user) {
   return "Interpreter";
 }
 
+function mapService(s) {
+  return {
+    ...s,
+    clientId: s.client_id,
+    clientRut: s.client_rut,
+    clientName: s.client_name,
+    interpreterId: s.interpreter_id,
+    interpreterName: s.interpreter_name,
+    serviceType: s.service_type,
+    durationMin: s.duration_min,
+    scheduledAt: s.scheduled_at,
+    amountCLP: s.amount_clp,
+    paidAt: s.paid_at,
+    startCode: s.start_code,
+    endCode: s.end_code,
+    startedAt: s.started_at,
+    finishedAt: s.finished_at,
+    ratedAt: s.rated_at,
+    createdAt: s.created_at,
+  };
+}
+
 export default function InterpreterDashboard() {
   const nav = useNavigate();
   const { user } = useAuth();
-  const [tick, setTick] = useState(0);
 
-  const services = useMemo(() => {
-    return listServices().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [tick]);
+  const [services, setServices] = useState([]);
+  const [ratings, setRatings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAll();
+  }, [user?.id]);
+
+  async function loadAll() {
+    setLoading(true);
+    await Promise.all([loadServices(), loadRatings()]);
+    setLoading(false);
+  }
+
+  async function loadServices() {
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("Interpreter services error:", error);
+      setServices([]);
+      return;
+    }
+
+    setServices((data || []).map(mapService));
+  }
+
+  async function loadRatings() {
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from("ratings")
+      .select("*")
+      .eq("interpreter_id", user.id);
+
+    if (error) {
+      console.log("Interpreter ratings error:", error);
+      setRatings([]);
+      return;
+    }
+
+    setRatings(data || []);
+  }
 
   const available = useMemo(() => {
     return services.filter((s) => s.status === "paid" && !s.interpreterId);
@@ -142,9 +196,14 @@ export default function InterpreterDashboard() {
   }, [mine]);
 
   const myRating = useMemo(() => {
-    if (!user?.id) return { avg: 0, total: 0 };
-    return getInterpreterRating(user.id);
-  }, [user?.id, tick]);
+    if (!ratings.length) return { avg: 0, total: 0 };
+
+    const total = ratings.length;
+    const sum = ratings.reduce((acc, r) => acc + Number(r.rating || 0), 0);
+    const avg = Math.round((sum / total) * 10) / 10;
+
+    return { avg, total };
+  }, [ratings]);
 
   if (!user) {
     return (
@@ -167,9 +226,7 @@ export default function InterpreterDashboard() {
     );
   }
 
-  const refresh = () => setTick((x) => x + 1);
-
-  const take = (serviceId) => {
+  const take = async (serviceId) => {
     const service = services.find((s) => s.id === serviceId);
     if (!service) return;
 
@@ -178,29 +235,60 @@ export default function InterpreterDashboard() {
       return;
     }
 
-    updateService(serviceId, {
-      interpreterId: user.id,
-      interpreterName: user.fullName,
-      status: "matched",
-    });
+    const { error } = await supabase
+      .from("services")
+      .update({
+        interpreter_id: user.id,
+        interpreter_name: user.fullName,
+        status: "matched",
+      })
+      .eq("id", serviceId)
+      .is("interpreter_id", null);
 
-    refresh();
+    if (error) {
+      console.log(error);
+      alert("❌ No se pudo aceptar la solicitud.");
+      return;
+    }
+
+    await loadServices();
+    alert("✅ Solicitud aceptada correctamente.");
   };
 
-  const start = (serviceId) => {
-    updateService(serviceId, {
-      status: "started",
-      startedAt: Date.now(),
-    });
-    refresh();
+  const start = async (serviceId) => {
+    const { error } = await supabase
+      .from("services")
+      .update({
+        status: "started",
+        started_at: new Date().toISOString(),
+      })
+      .eq("id", serviceId);
+
+    if (error) {
+      console.log(error);
+      alert("❌ No se pudo iniciar el servicio.");
+      return;
+    }
+
+    await loadServices();
   };
 
-  const finish = (serviceId) => {
-    updateService(serviceId, {
-      status: "finished",
-      finishedAt: Date.now(),
-    });
-    refresh();
+  const finish = async (serviceId) => {
+    const { error } = await supabase
+      .from("services")
+      .update({
+        status: "finished",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", serviceId);
+
+    if (error) {
+      console.log(error);
+      alert("❌ No se pudo finalizar el servicio.");
+      return;
+    }
+
+    await loadServices();
   };
 
   const availablePercent = services.length
@@ -211,7 +299,10 @@ export default function InterpreterDashboard() {
     ? Math.round((activeMine.length / services.length) * 100)
     : 8;
 
-  const ratingPercent = Math.max(8, Math.min(100, Math.round((Number(myRating.avg || 0) / 5) * 100)));
+  const ratingPercent = Math.max(
+    8,
+    Math.min(100, Math.round((Number(myRating.avg || 0) / 5) * 100))
+  );
 
   const Card = ({ s, showTake = false }) => (
     <div className="aether-shell">
@@ -232,7 +323,7 @@ export default function InterpreterDashboard() {
 
       <div className="p-4 grid gap-3">
         <div className="aether-block">
-          <div className="aether-block-head">Service Data</div>
+          <div className="aether-block-head">Datos del servicio</div>
           <div className="aether-block-body grid gap-1 text-sm text-white/75">
             <div>👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b></div>
             <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
@@ -253,7 +344,7 @@ export default function InterpreterDashboard() {
         </div>
 
         <div className="aether-block">
-          <div className="aether-block-head">Live Status</div>
+          <div className="aether-block-head">Estado en vivo</div>
           <div className="aether-block-body text-sm text-white/80">
             {flowMessage(s, user)}
           </div>
@@ -316,14 +407,13 @@ export default function InterpreterDashboard() {
 
   return (
     <div className="grid gap-4">
-      {/* HEADER */}
       <div className="aether-shell">
         <div className="aether-header">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="aether-title">AETHER | INTERPRETER REGISTRY</div>
+              <div className="aether-title">🤟 Panel Intérprete</div>
               <div className="aether-subtitle">
-                Live assignment center · {roleLabel(user)}
+                Centro real de asignaciones conectado a Supabase · {roleLabel(user)}
               </div>
             </div>
 
@@ -340,76 +430,59 @@ export default function InterpreterDashboard() {
         <div className="p-4 grid lg:grid-cols-[1.3fr_.7fr] gap-4">
           <div className="grid gap-4">
             <div className="aether-block">
-              <div className="aether-block-head">Active Data Streams</div>
+              <div className="aether-block-head">Datos activos</div>
               <div className="aether-block-body">
                 <div className="aether-wave" />
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              <MetricCard
-                label="Available"
-                value={available.length}
-                hint="Pagados sin intérprete"
-              />
-              <MetricCard
-                label="Active"
-                value={activeMine.length}
-                hint="Asignados / en curso"
-              />
-              <MetricCard
-                label="Finished"
-                value={finishedMine.length}
-                hint="Cerrados o evaluados"
-              />
-              <MetricCard
-                label="Rating"
-                value={myRating.avg}
-                hint={`${myRating.total} evaluaciones`}
-              />
+              <MetricCard label="Disponibles" value={available.length} hint="Pagados sin intérprete" />
+              <MetricCard label="Activos" value={activeMine.length} hint="Asignados / en curso" />
+              <MetricCard label="Finalizados" value={finishedMine.length} hint="Cerrados o evaluados" />
+              <MetricCard label="Rating" value={myRating.avg} hint={`${myRating.total} evaluaciones`} />
             </div>
           </div>
 
           <div className="aether-block">
-            <div className="aether-block-head">System Overview</div>
+            <div className="aether-block-head">Resumen del sistema</div>
             <div className="aether-block-body">
               <div className="aether-statbars">
-                <AetherBar label="Avail" value={availablePercent} />
-                <AetherBar label="Active" value={activePercent} />
+                <AetherBar label="Disp." value={availablePercent} />
+                <AetherBar label="Activo" value={activePercent} />
                 <AetherBar label="Rate" value={ratingPercent} />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            className="tron-btn tron-primary py-3 font-semibold"
-            onClick={() => nav("/historial")}
-          >
+        <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button className="tron-btn tron-primary py-3 font-semibold" onClick={loadAll}>
+            🔄 Actualizar
+          </button>
+
+          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/historial")}>
             📜 Ver historial
           </button>
 
-          <button
-            className="tron-btn py-3 font-semibold"
-            onClick={() => nav("/cursos")}
-          >
+          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/cursos")}>
             🎓 Ver cursos
           </button>
         </div>
       </div>
 
-      {/* DISPONIBLES */}
       <div className="aether-shell">
         <div className="aether-header">
-          <div className="aether-title">Available Requests</div>
+          <div className="aether-title">Solicitudes disponibles</div>
           <div className="aether-subtitle">
             Servicios pagados que aún no tienen intérprete asignado
           </div>
         </div>
 
         <div className="p-4">
-          {available.length === 0 ? (
+          {loading ? (
+            <div className="panel-mini text-white/70">Cargando solicitudes...</div>
+          ) : available.length === 0 ? (
             <div className="panel-mini text-white/70">
               No hay solicitudes pagadas disponibles por ahora.
             </div>
@@ -423,17 +496,18 @@ export default function InterpreterDashboard() {
         </div>
       </div>
 
-      {/* MIS SERVICIOS */}
       <div className="aether-shell">
         <div className="aether-header">
-          <div className="aether-title">My Active Services</div>
+          <div className="aether-title">Mis servicios activos</div>
           <div className="aether-subtitle">
             Servicios ya asignados para ti, manual o automáticamente
           </div>
         </div>
 
         <div className="p-4">
-          {mine.length === 0 ? (
+          {loading ? (
+            <div className="panel-mini text-white/70">Cargando servicios...</div>
+          ) : mine.length === 0 ? (
             <div className="panel-mini text-white/70">
               Aún no tienes servicios asignados.
             </div>

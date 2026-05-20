@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getService, updateService } from "../data/servicesStore";
 import { useAuth } from "../auth/AuthContext";
+import { supabase } from "../lib/supabaseClient";
 
 function moneyCLP(n) {
   return "$" + Number(n || 0).toLocaleString("es-CL");
 }
 
 function modeLabel(mode) {
-  return mode === "video"
-    ? "🎥 Video"
-    : mode === "schedule"
-    ? "📅 Agenda"
-    : "⚡ Ahora";
+  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
 }
 
 function serviceTypeLabel(type) {
@@ -54,6 +50,28 @@ function userRoleLabel(user) {
   return "🧏‍♀️ Cliente";
 }
 
+function mapService(s) {
+  return {
+    ...s,
+    clientId: s.client_id,
+    clientRut: s.client_rut,
+    clientName: s.client_name,
+    interpreterId: s.interpreter_id,
+    interpreterName: s.interpreter_name,
+    serviceType: s.service_type,
+    durationMin: s.duration_min,
+    scheduledAt: s.scheduled_at,
+    amountCLP: s.amount_clp,
+    paidAt: s.paid_at,
+    startCode: s.start_code,
+    endCode: s.end_code,
+    startedAt: s.started_at,
+    finishedAt: s.finished_at,
+    ratedAt: s.rated_at,
+    createdAt: s.created_at,
+  };
+}
+
 export default function VideoRoom() {
   const container = useRef(null);
   const apiRef = useRef(null);
@@ -63,10 +81,10 @@ export default function VideoRoom() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  const service = useMemo(() => getService(roomId), [roomId]);
+  const [service, setService] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const durationMinutes = Number(service?.durationMin || 30);
-  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  const [secondsLeft, setSecondsLeft] = useState(30 * 60);
   const [error, setError] = useState("");
   const [isReady, setIsReady] = useState(false);
 
@@ -79,33 +97,57 @@ export default function VideoRoom() {
   const [videoMuted, setVideoMuted] = useState(false);
 
   useEffect(() => {
-    setSecondsLeft(durationMinutes * 60);
-  }, [durationMinutes]);
+    loadService();
+  }, [roomId]);
 
-  useEffect(() => {
-    if (!service) return;
+  async function loadService() {
+    setLoading(true);
 
-    const shouldStart =
-      service.status === "matched" ||
-      (service.status === "paid" && service.interpreterId);
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .eq("id", roomId)
+      .single();
 
-    if (shouldStart) {
-      updateService(service.id, {
-        status: "started",
-        startedAt: service.startedAt || Date.now(),
-      });
-    }
-  }, [service]);
-
-  useEffect(() => {
-    if (!container.current) return;
-
-    if (!window.JitsiMeetExternalAPI) {
-      setError("❌ Jitsi no está disponible en esta página.");
+    if (error) {
+      console.log("VideoRoom load error:", error);
+      setError("❌ No se encontró el servicio en Supabase.");
+      setService(null);
+      setLoading(false);
       return;
     }
 
-    const domain = "meet.jit.si";
+    const mapped = mapService(data);
+    setService(mapped);
+    setSecondsLeft(Number(mapped.durationMin || 30) * 60);
+    setLoading(false);
+
+    const shouldStart =
+      mapped.status === "matched" ||
+      (mapped.status === "paid" && mapped.interpreterId);
+
+    if (shouldStart) {
+      const { data: updated } = await supabase
+        .from("services")
+        .update({
+          status: "started",
+          started_at: mapped.startedAt || new Date().toISOString(),
+        })
+        .eq("id", mapped.id)
+        .select()
+        .single();
+
+      if (updated) setService(mapService(updated));
+    }
+  }
+
+  useEffect(() => {
+    if (!service || !container.current || apiRef.current) return;
+
+    if (!window.JitsiMeetExternalAPI) {
+      setError("❌ Jitsi no está disponible. Revisa public/index.html.");
+      return;
+    }
 
     const options = {
       roomName: "interpreteya-" + roomId,
@@ -124,7 +166,7 @@ export default function VideoRoom() {
     };
 
     try {
-      apiRef.current = new window.JitsiMeetExternalAPI(domain, options);
+      apiRef.current = new window.JitsiMeetExternalAPI("meet.jit.si", options);
 
       apiRef.current.addEventListener("videoConferenceJoined", () => {
         setIsReady(true);
@@ -137,7 +179,7 @@ export default function VideoRoom() {
       apiRef.current.addEventListener("readyToClose", () => {
         finishAndExit(false);
       });
-    } catch (err) {
+    } catch {
       setError("❌ No se pudo abrir la videollamada.");
       setIsReady(false);
     }
@@ -148,20 +190,21 @@ export default function VideoRoom() {
         apiRef.current = null;
       }
     };
-  }, [roomId]);
+  }, [service, roomId]);
 
-  const finishAndExit = (fromTimer = false) => {
+  async function finishAndExit(fromTimer = false) {
     if (!service || finishedRef.current) return;
     finishedRef.current = true;
 
-    updateService(service.id, {
-      status: "finished",
-      finishedAt: Date.now(),
-    });
+    await supabase
+      .from("services")
+      .update({
+        status: "finished",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", service.id);
 
-    if (fromTimer) {
-      alert("⏱ Tiempo finalizado");
-    }
+    if (fromTimer) alert("⏱ Tiempo finalizado");
 
     if (user?.profileType === "user") {
       nav(`/calificar/${roomId}`, { replace: true });
@@ -174,7 +217,7 @@ export default function VideoRoom() {
     }
 
     nav("/gerente", { replace: true });
-  };
+  }
 
   useEffect(() => {
     if (!service) return;
@@ -191,7 +234,7 @@ export default function VideoRoom() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [service, roomId, user]);
+  }, [service]);
 
   const handleSendChat = () => {
     const value = chatText.trim();
@@ -205,6 +248,7 @@ export default function VideoRoom() {
         text: value,
       },
     ]);
+
     setChatText("");
   };
 
@@ -222,20 +266,30 @@ export default function VideoRoom() {
 
   const addMinute = () => {
     setSecondsLeft((prev) => prev + 60);
-    setChatItems((prev) => [
-      ...prev,
-      { id: Date.now(), author: "Sistema", text: "Se agregó 1 minuto a la sesión." },
-    ]);
   };
 
   const addFiveMinutes = () => {
     setSecondsLeft((prev) => prev + 300);
-    setChatItems((prev) => [
-      ...prev,
-      { id: Date.now(), author: "Sistema", text: "Se agregaron 5 minutos a la sesión." },
-    ]);
   };
 
+  if (loading) {
+    return <div className="tron-card p-6 max-w-2xl mx-auto">🔄 Cargando sala...</div>;
+  }
+
+  if (!service) {
+    return (
+      <div className="tron-card p-6 max-w-2xl mx-auto">
+        ❌ No se encontró el servicio.
+        <div className="mt-4">
+          <button className="tron-btn tron-primary" onClick={() => nav("/historial")}>
+            ⬅️ Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const durationMinutes = Number(service.durationMin || 30);
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
 
@@ -248,36 +302,19 @@ export default function VideoRoom() {
   const audioPercent = audioMuted ? 12 : 88;
   const videoPercent = videoMuted ? 8 : 90;
 
-  if (!service) {
-    return (
-      <div className="tron-card p-6 max-w-2xl mx-auto">
-        ❌ No se encontró el servicio.
-        <div className="mt-4">
-          <button
-            className="tron-btn tron-primary"
-            onClick={() => nav("/historial")}
-          >
-            ⬅️ Volver
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const isManager = user?.role === "manager";
   const isInterpreter = user?.profileType === "interpreter";
   const isClient = user?.profileType === "user";
 
   return (
     <div className="max-w-7xl mx-auto grid gap-4">
-      {/* HEADER */}
       <div className="aether-shell">
         <div className="aether-header">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="aether-title">AETHER | VIDEO CALL CENTER</div>
+              <div className="aether-title">🎥 Sala de videollamada</div>
               <div className="aether-subtitle">
-                InterpreteYa · live call room · {userRoleLabel(user)}
+                InterpreteYa · sala en vivo · {userRoleLabel(user)}
               </div>
             </div>
 
@@ -293,23 +330,11 @@ export default function VideoRoom() {
         </div>
 
         <div className="p-4 grid lg:grid-cols-[1.5fr_.7fr] gap-4">
-          {/* LEFT MAIN */}
           <div className="aether-grid">
-            <div className="aether-block">
-              <div className="aether-block-head">Active Data Streams</div>
-              <div className="aether-block-body">
-                <div className="aether-wave" />
-              </div>
-            </div>
-
             <div className="aether-block">
               <div className="aether-block-head">Video Call Center</div>
               <div className="aether-block-body p-2">
-                {error && (
-                  <div className="panel-mini mb-3 text-sm text-white/80">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="panel-mini mb-3 text-sm text-white/80">{error}</div>}
 
                 <div
                   ref={container}
@@ -319,10 +344,9 @@ export default function VideoRoom() {
             </div>
           </div>
 
-          {/* RIGHT SIDE */}
           <div className="aether-grid">
             <div className="aether-block">
-              <div className="aether-block-head">System Overview</div>
+              <div className="aether-block-head">Estado del sistema</div>
               <div className="aether-block-body">
                 <div className="aether-statbars">
                   <AetherBar label="Time" value={timePercent} />
@@ -334,138 +358,67 @@ export default function VideoRoom() {
             </div>
 
             <div className="aether-block">
-              <div className="aether-block-head">Service Data</div>
+              <div className="aether-block-head">Datos del servicio</div>
               <div className="aether-block-body grid gap-2 text-sm text-white/75">
                 <div>{serviceTypeLabel(service.serviceType)} • {modeLabel(service.mode)}</div>
                 <div>💳 Monto: <b>{moneyCLP(service.amountCLP)}</b></div>
                 <div>👤 Cliente: <b>{service.clientName || service.clientRut || "—"}</b></div>
                 <div>🧑‍💼 Intérprete: <b>{service.interpreterName || "—"}</b></div>
                 <div>⏱ Duración base: <b>{durationMinutes} min</b></div>
-                <div>
-                  📡 Estado:{" "}
-                  <b>{service.status === "finished" ? "Finalizado" : isReady ? "En vivo" : "Conectando"}</b>
-                </div>
+                <div>📡 Estado: <b>{service.status === "finished" ? "Finalizado" : isReady ? "En vivo" : "Conectando"}</b></div>
               </div>
             </div>
 
             <div className="aether-block">
-              <div className="aether-block-head">Quick Controls</div>
+              <div className="aether-block-head">Controles rápidos</div>
               <div className="aether-block-body grid gap-2">
-                <button
-                  className="tron-btn tron-primary font-semibold"
-                  onClick={toggleAudio}
-                >
+                <button className="tron-btn tron-primary font-semibold" onClick={toggleAudio}>
                   {audioMuted ? "🎤 Activar audio" : "🔇 Silenciar audio"}
                 </button>
 
-                <button
-                  className="tron-btn font-semibold"
-                  onClick={toggleVideo}
-                >
+                <button className="tron-btn font-semibold" onClick={toggleVideo}>
                   {videoMuted ? "📷 Activar cámara" : "🚫 Apagar cámara"}
                 </button>
 
                 {(isManager || isInterpreter) && (
                   <>
-                    <button
-                      className="tron-btn tron-muted font-semibold"
-                      onClick={addMinute}
-                    >
+                    <button className="tron-btn tron-muted font-semibold" onClick={addMinute}>
                       ➕ Agregar 1 minuto
                     </button>
 
-                    <button
-                      className="tron-btn tron-muted font-semibold"
-                      onClick={addFiveMinutes}
-                    >
+                    <button className="tron-btn tron-muted font-semibold" onClick={addFiveMinutes}>
                       ⏱➕ Agregar 5 minutos
                     </button>
                   </>
                 )}
 
-                {isClient && (
-                  <button
-                    className="tron-btn font-semibold"
-                    onClick={() =>
-                      setChatItems((prev) => [
-                        ...prev,
-                        {
-                          id: Date.now(),
-                          author: "Cliente",
-                          text: "Necesito apoyo adicional en esta parte de la llamada.",
-                        },
-                      ])
-                    }
-                  >
-                    🙋 Pedir apoyo
-                  </button>
-                )}
-
-                {isInterpreter && (
-                  <button
-                    className="tron-btn font-semibold"
-                    onClick={() =>
-                      setChatItems((prev) => [
-                        ...prev,
-                        {
-                          id: Date.now(),
-                          author: "Intérprete",
-                          text: "Interpretación fluida. Continuamos con la sesión.",
-                        },
-                      ])
-                    }
-                  >
-                    🤟 Marcar avance
-                  </button>
-                )}
-
-                {isManager && (
-                  <button
-                    className="tron-btn font-semibold"
-                    onClick={() =>
-                      setChatItems((prev) => [
-                        ...prev,
-                        {
-                          id: Date.now(),
-                          author: "Gerencia",
-                          text: "Supervisión activa. Todo en funcionamiento.",
-                        },
-                      ])
-                    }
-                  >
-                    🧑‍💼 Supervisar sesión
-                  </button>
-                )}
+                <button className="tron-btn tron-danger py-3 font-semibold" onClick={() => finishAndExit(false)}>
+                  🏁 Finalizar llamada
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECOND ROW */}
       <div className="grid xl:grid-cols-[1.1fr_.9fr] gap-4">
-        {/* CHAT */}
         <div className="aether-shell">
           <div className="aether-header">
-            <div className="aether-title">Secure Chat / Session Notes</div>
+            <div className="aether-title">Chat / notas de sesión</div>
             <div className="aether-subtitle">Mensajes rápidos durante la videollamada</div>
           </div>
 
           <div className="p-4 grid gap-3">
             <div className="aether-block">
               <div className="aether-block-body max-h-[260px] overflow-auto grid gap-2">
-                {chatItems.length === 0 ? (
-                  <div className="text-sm text-white/55">Sin mensajes todavía.</div>
-                ) : (
-                  chatItems.map((item) => (
-                    <div key={item.id} className="panel-mini">
-                      <div className="text-xs text-white/50 uppercase tracking-[.08em]">
-                        {item.author}
-                      </div>
-                      <div className="text-sm text-white/80 mt-1">{item.text}</div>
+                {chatItems.map((item) => (
+                  <div key={item.id} className="panel-mini">
+                    <div className="text-xs text-white/50 uppercase tracking-[.08em]">
+                      {item.author}
                     </div>
-                  ))
-                )}
+                    <div className="text-sm text-white/80 mt-1">{item.text}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -476,55 +429,32 @@ export default function VideoRoom() {
                 value={chatText}
                 onChange={(e) => setChatText(e.target.value)}
               />
-              <button
-                className="tron-btn tron-primary font-semibold"
-                onClick={handleSendChat}
-              >
+              <button className="tron-btn tron-primary font-semibold" onClick={handleSendChat}>
                 ➤ Enviar
               </button>
             </div>
           </div>
         </div>
 
-        {/* ACTION PANEL */}
         <div className="aether-shell">
           <div className="aether-header">
-            <div className="aether-title">Session Actions</div>
+            <div className="aether-title">Acciones de sesión</div>
             <div className="aether-subtitle">Control operativo por rol</div>
           </div>
 
           <div className="p-4 grid gap-3">
             <div className="aether-mini-metric">
-              <div className="aether-mini-label">User role</div>
+              <div className="aether-mini-label">Rol</div>
               <div className="aether-mini-value">{userRoleLabel(user)}</div>
             </div>
 
             <div className="aether-mini-metric">
-              <div className="aether-mini-label">Live status</div>
-              <div className="aether-mini-value">
-                {isReady ? "ACTIVO" : "PREPARANDO"}
-              </div>
+              <div className="aether-mini-label">Estado</div>
+              <div className="aether-mini-value">{isReady ? "ACTIVO" : "PREPARANDO"}</div>
             </div>
 
-            <div className="aether-mini-metric">
-              <div className="aether-mini-label">Remaining time</div>
-              <div className="aether-mini-value">
-                {minutes}:{seconds.toString().padStart(2, "0")}
-              </div>
-            </div>
-
-            <button
-              className="tron-btn tron-muted py-3 md:py-4 font-semibold"
-              onClick={() => nav(getBackRoute(user))}
-            >
+            <button className="tron-btn tron-muted py-3 md:py-4 font-semibold" onClick={() => nav(getBackRoute(user))}>
               ⬅️ Volver al panel
-            </button>
-
-            <button
-              className="tron-btn tron-danger py-3 md:py-4 font-semibold"
-              onClick={() => finishAndExit(false)}
-            >
-              🏁 Finalizar llamada
             </button>
 
             {isClient && (

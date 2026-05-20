@@ -1,77 +1,72 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
-  createUser,
-  ensureManagerSeed,
-  findUserByRut,
-  findUserByEmail,
-} from "../data/demoStore";
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  loginManager,
+  loginByRut,
+  registerUser,
+} from "../lib/authApi";
 
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
-  // ✅ Siempre asegurar gerentes demo (no duplica)
-  useEffect(() => {
-    ensureManagerSeed();
-  }, []);
-
-  // ✅ Cargar sesión si existe
   useEffect(() => {
     try {
       const raw = localStorage.getItem("iy_session_v1");
-      if (raw) setUser(JSON.parse(raw));
+
+      if (raw) {
+        setUser(JSON.parse(raw));
+      }
     } catch {}
   }, []);
 
   const persist = (u) => {
     setUser(u);
-    localStorage.setItem("iy_session_v1", JSON.stringify(u));
+
+    localStorage.setItem(
+      "iy_session_v1",
+      JSON.stringify(u)
+    );
   };
 
   const logout = async () => {
     setUser(null);
+
     localStorage.removeItem("iy_session_v1");
   };
 
-  // =========================
-  // ✅ LOGIN CLIENTE (RUT)
-  // =========================
-  const loginUserByRut = async ({ rut, password }) => {
-    ensureManagerSeed(); // por seguridad (si limpian localStorage)
+  // LOGIN CLIENTE
+  const login = async ({ rut, password }) => {
+    const u = await loginByRut(rut, password);
 
-    const u = findUserByRut(rut);
     if (!u) {
-      const err = new Error("No existe");
-      err.code = "NO_EXISTS";
+      throw new Error("Usuario no encontrado");
+    }
+
+    if (u.status === "pending") {
+      const err = new Error("PENDING");
+      err.code = "PENDING";
       throw err;
     }
 
-    if ((u.passwordHash || "") !== (password || "")) {
-      const err = new Error("Clave incorrecta");
-      err.code = "BAD_PASSWORD";
+    if (u.status === "rejected") {
+      const err = new Error("REJECTED");
+      err.code = "REJECTED";
       throw err;
-    }
-
-    // estados solo aplican a clientes
-    if (u.role !== "manager") {
-      if (u.status === "pending") {
-        const err = new Error("PENDING");
-        err.code = "PENDING";
-        throw err;
-      }
-      if (u.status === "rejected") {
-        const err = new Error("REJECTED");
-        err.code = "REJECTED";
-        throw err;
-      }
     }
 
     persist({
       id: u.id,
-      role: u.role, // client
-      profileType: u.profileType, // user | interpreter
-      fullName: u.fullName,
+      role: u.role,
+      profileType: u.profile_type,
+      fullName: u.full_name,
       rut: u.rut,
       email: u.email,
       status: u.status,
@@ -80,44 +75,22 @@ export function AuthProvider({ children }) {
     return u;
   };
 
-  // =========================
-  // ✅ LOGIN GERENTE (EMAIL)
-  // =========================
-  const loginManagerByEmail = async ({ email, password }) => {
-    ensureManagerSeed();
-
-    const e = (email || "").trim().toLowerCase();
-    const u = findUserByEmail(e);
+  // LOGIN GERENTE
+  const loginManagerByEmail = async ({
+    email,
+    password,
+  }) => {
+    const u = await loginManager(email, password);
 
     if (!u) {
-      const err = new Error("No existe");
-      err.code = "NO_EXISTS";
-      throw err;
-    }
-
-    if ((u.passwordHash || "") !== (password || "")) {
-      const err = new Error("Clave incorrecta");
-      err.code = "BAD_PASSWORD";
-      throw err;
-    }
-
-    if (u.role !== "manager") {
-      const err = new Error("NOT_MANAGER");
-      err.code = "NOT_MANAGER";
-      throw err;
-    }
-
-    if (u.status !== "active") {
-      const err = new Error("NOT_ACTIVE");
-      err.code = "NOT_ACTIVE";
-      throw err;
+      throw new Error("Gerente no encontrado");
     }
 
     persist({
       id: u.id,
-      role: "manager",
-      profileType: "manager",
-      fullName: u.fullName,
+      role: u.role,
+      profileType: u.profile_type,
+      fullName: u.full_name,
       rut: u.rut,
       email: u.email,
       status: u.status,
@@ -126,34 +99,39 @@ export function AuthProvider({ children }) {
     return u;
   };
 
-  // =========================
-  // ✅ REGISTER (clientes)
-  // =========================
-  const register = async ({ profileType, fullName, rut, email, password }) => {
-    ensureManagerSeed();
-    createUser({ profileType, fullName, rut, email, password });
-    return true;
+  // REGISTER
+  const register = async ({
+    profileType,
+    fullName,
+    rut,
+    email,
+    password,
+  }) => {
+    return await registerUser({
+      profileType,
+      fullName,
+      rut,
+      email,
+      password,
+    });
   };
 
-  // ✅ Aliases para que tus pantallas usen nombres simples
-  const login = loginUserByRut; // /login usa login()
-  const loginManager = loginManagerByEmail; // /login-gerente usa loginManager()
-
-  // ✅ FIX Vercel: agregar dependencias completas
   const value = useMemo(
     () => ({
       user,
-      login, // cliente rut
-      loginManager, // gerente email
-      loginUserByRut,
-      loginManagerByEmail,
+      login,
+      loginManager: loginManagerByEmail,
       register,
       logout,
     }),
-    [user, login, loginManager, loginUserByRut, loginManagerByEmail, register, logout]
+    [user]
   );
 
-  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={value}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
 export function useAuth() {
