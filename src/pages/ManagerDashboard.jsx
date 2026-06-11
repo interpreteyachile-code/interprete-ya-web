@@ -34,7 +34,7 @@ function Modal({ open, onClose, children }) {
       <div className="absolute inset-0 grid place-items-center p-4">
         <div className="w-full max-w-5xl tron-card p-5 md:p-6 relative">
           <button
-            className="tron-btn px-4 py-2 absolute right-4 top-4"
+            className="tron-btn px-4 py-2 absolute right-4 top-4 z-10"
             onClick={onClose}
           >
             ✖
@@ -51,7 +51,11 @@ function statusUserLabel(status) {
     ? "⏳ Pendiente"
     : status === "active"
     ? "✅ Activo"
-    : "⛔ Rechazado";
+    : status === "blocked"
+    ? "🚫 Bloqueado"
+    : status === "rejected"
+    ? "⛔ Rechazado"
+    : "—";
 }
 
 function statusServiceLabel(status) {
@@ -73,7 +77,11 @@ function statusServiceLabel(status) {
 }
 
 function modeLabel(mode) {
-  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
+  return mode === "video"
+    ? "🎥 Video"
+    : mode === "schedule"
+    ? "📅 Agenda"
+    : "⚡ Ahora";
 }
 
 function specialtyLabel(specialty) {
@@ -138,6 +146,13 @@ export default function ManagerDashboard() {
 
   const [selectedService, setSelectedService] = useState(null);
   const [selectedInterpreterId, setSelectedInterpreterId] = useState("");
+
+  const [editUser, setEditUser] = useState(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRut, setEditRut] = useState("");
+  const [editProfileType, setEditProfileType] = useState("user");
+  const [editStatus, setEditStatus] = useState("pending");
 
   const isLogged = !!user;
   const isManager = user?.role === "manager";
@@ -223,14 +238,13 @@ export default function ManagerDashboard() {
       pending: allClients.filter((u) => u.status === "pending").length,
       active: allClients.filter((u) => u.status === "active").length,
       rejected: allClients.filter((u) => u.status === "rejected").length,
+      blocked: allClients.filter((u) => u.status === "blocked").length,
       users: allClients.filter((u) => u.profileType === "user").length,
       interpreters: allClients.filter((u) => u.profileType === "interpreter").length,
     };
   }, [allClients]);
 
-  const allServices = useMemo(() => {
-    return servicesData;
-  }, [servicesData]);
+  const allServices = useMemo(() => servicesData, [servicesData]);
 
   const services = useMemo(() => {
     const query = (q || "").trim().toLowerCase();
@@ -258,7 +272,9 @@ export default function ManagerDashboard() {
       finished: by("finished"),
       paid: by("paid"),
       rated: by("rated"),
-      waitingAssign: allServices.filter((s) => s.status === "paid" && !s.interpreter_id).length,
+      waitingAssign: allServices.filter(
+        (s) => s.status === "paid" && !s.interpreter_id
+      ).length,
     };
   }, [allServices]);
 
@@ -293,6 +309,74 @@ export default function ManagerDashboard() {
 
     await loadProfiles();
     alert("✅ Estado actualizado");
+  };
+
+  const deleteAccount = async (id, name) => {
+    const ok = window.confirm(
+      `¿Seguro que quieres eliminar a ${name || "este usuario"}?\n\nEsta acción no se puede deshacer.`
+    );
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
+
+    if (error) {
+      console.log(error);
+      alert("❌ No se pudo eliminar usuario.");
+      return;
+    }
+
+    await loadProfiles();
+    alert("✅ Usuario eliminado.");
+  };
+
+  const openEditUser = (u) => {
+    setEditUser(u);
+    setEditFullName(u.fullName || "");
+    setEditEmail(u.email || "");
+    setEditRut(u.rut || "");
+    setEditProfileType(u.profileType || "user");
+    setEditStatus(u.status || "pending");
+  };
+
+  const saveEditUser = async () => {
+    if (!editUser) return;
+
+    if (!editFullName.trim()) {
+      alert("⚠️ Falta nombre.");
+      return;
+    }
+
+    if (!editEmail.trim()) {
+      alert("⚠️ Falta correo.");
+      return;
+    }
+
+    if (!editRut.trim()) {
+      alert("⚠️ Falta RUT.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: editFullName.trim(),
+        email: editEmail.trim().toLowerCase(),
+        rut: editRut.trim(),
+        profile_type: editProfileType,
+        status: editStatus,
+      })
+      .eq("id", editUser.id);
+
+    if (error) {
+      console.log(error);
+      alert("❌ No se pudo editar usuario.");
+      return;
+    }
+
+    setEditUser(null);
+    await loadProfiles();
+    alert("✅ Usuario actualizado.");
   };
 
   const setServicePatch = async (id, patch) => {
@@ -337,7 +421,9 @@ export default function ManagerDashboard() {
       return;
     }
 
-    const selectedInterpreter = activeInterpreters.find((i) => i.id === selectedInterpreterId);
+    const selectedInterpreter = activeInterpreters.find(
+      (i) => i.id === selectedInterpreterId
+    );
 
     if (!selectedInterpreter) {
       alert("No se encontró el intérprete seleccionado.");
@@ -360,7 +446,7 @@ export default function ManagerDashboard() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="text-2xl md:text-3xl font-semibold h-title">
-                AETHER | PANEL GERENTE
+                AETHER | PANEL GERENTE BETA
               </div>
               <div className="text-white/70 mt-2">
                 Centro operativo real conectado a Supabase.
@@ -375,22 +461,29 @@ export default function ManagerDashboard() {
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
-          <MetricCard label="Pending accounts" value={accCounts.pending} hint="Cuentas por revisar" />
-          <MetricCard label="Active accounts" value={accCounts.active} hint="Cuentas habilitadas" />
-          <MetricCard label="Interpreters" value={accCounts.interpreters} hint="Activos y en revisión" />
-          <MetricCard label="Paid services" value={svcCounts.paid} hint="Pagos confirmados" />
-          <MetricCard label="Waiting assign" value={svcCounts.waitingAssign} hint="Servicios sin intérprete" />
+        <div className="grid sm:grid-cols-2 xl:grid-cols-6 gap-3">
+          <MetricCard label="Pending" value={accCounts.pending} hint="Por revisar" />
+          <MetricCard label="Active" value={accCounts.active} hint="Habilitados" />
+          <MetricCard label="Blocked" value={accCounts.blocked} hint="Bloqueados" />
+          <MetricCard label="Interpreters" value={accCounts.interpreters} hint="Intérpretes" />
+          <MetricCard label="Paid services" value={svcCounts.paid} hint="Pagados" />
+          <MetricCard label="Waiting assign" value={svcCounts.waitingAssign} hint="Sin intérprete" />
         </div>
 
         <div className="mt-4 glow-line" />
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")} onClick={() => setTab("accounts")}>
+          <button
+            className={cx("tron-btn px-4 py-2", tab === "accounts" && "tron-primary")}
+            onClick={() => setTab("accounts")}
+          >
             👤 Cuentas
           </button>
 
-          <button className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")} onClick={() => setTab("services")}>
+          <button
+            className={cx("tron-btn px-4 py-2", tab === "services" && "tron-primary")}
+            onClick={() => setTab("services")}
+          >
             🧾 Servicios
           </button>
 
@@ -421,14 +514,23 @@ export default function ManagerDashboard() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-2">
-              <select className="tron-select" value={accStatus} onChange={(e) => setAccStatus(e.target.value)}>
+              <select
+                className="tron-select"
+                value={accStatus}
+                onChange={(e) => setAccStatus(e.target.value)}
+              >
                 <option value="pending">⏳ Pendientes</option>
                 <option value="active">✅ Activos</option>
+                <option value="blocked">🚫 Bloqueados</option>
                 <option value="rejected">⛔ Rechazados</option>
                 <option value="all">🧩 Todos</option>
               </select>
 
-              <select className="tron-select" value={accType} onChange={(e) => setAccType(e.target.value)}>
+              <select
+                className="tron-select"
+                value={accType}
+                onChange={(e) => setAccType(e.target.value)}
+              >
                 <option value="all">🧩 Tipo: Todos</option>
                 <option value="user">🧏‍♀️ Usuario</option>
                 <option value="interpreter">🧑‍💼 Intérprete</option>
@@ -458,7 +560,10 @@ export default function ManagerDashboard() {
                       <div>
                         <div className="font-semibold text-lg">{u.fullName}</div>
                         <div className="text-sm text-white/70 mt-1">
-                          {u.profileType === "interpreter" ? "🧑‍💼 Intérprete" : "🧏‍♀️ Usuario"} • 🪪 <b>{u.rut}</b>
+                          {u.profileType === "interpreter"
+                            ? "🧑‍💼 Intérprete"
+                            : "🧏‍♀️ Usuario"}{" "}
+                          • 🪪 <b>{u.rut}</b>
                         </div>
                         <div className="text-xs text-white/55 mt-1">📧 {u.email}</div>
                       </div>
@@ -470,33 +575,75 @@ export default function ManagerDashboard() {
                   {u.profileType === "interpreter" && u.interpreterProfile && (
                     <div className="panel-mini mt-3">
                       <div className="panel-label">Interpreter profile</div>
+
                       <div className="text-xs text-white/75 mt-3">
-                        📜 Certificación: <b>{u.interpreterProfile.certification || "—"}</b>
+                        📜 Certificación:{" "}
+                        <b>{u.interpreterProfile.certification || "—"}</b>
                       </div>
+
                       <div className="text-xs text-white/75 mt-1">
-                        🕒 Años experiencia: <b>{u.interpreterProfile.years ?? 0}</b>
+                        🕒 Años experiencia:{" "}
+                        <b>{u.interpreterProfile.years ?? 0}</b>
                       </div>
+
                       <div className="text-xs text-white/75 mt-1">
-                        🧩 Especialidad: <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
+                        🧩 Especialidad:{" "}
+                        <b>{specialtyLabel(u.interpreterProfile.specialty)}</b>
                       </div>
+
+                      {u.interpreterProfile.note && (
+                        <div className="text-xs text-white/60 mt-2">
+                          📝 {u.interpreterProfile.note}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {u.status === "pending" ? (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button className="tron-btn tron-primary font-semibold py-3" onClick={() => setAccountStatus(u.id, "active")}>
-                        ✅ Aprobar
-                      </button>
-
-                      <button className="tron-btn tron-danger font-semibold py-3" onClick={() => setAccountStatus(u.id, "rejected")}>
-                        ⛔ Rechazar
-                      </button>
-                    </div>
-                  ) : (
-                    <button className="tron-btn tron-muted w-full font-semibold py-3 mt-4" onClick={() => setAccountStatus(u.id, "pending")}>
-                      ↩️ Volver a Pendiente
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      className="tron-btn tron-primary font-semibold py-3"
+                      onClick={() => setAccountStatus(u.id, "active")}
+                    >
+                      ✅ Aprobar
                     </button>
-                  )}
+
+                    <button
+                      className="tron-btn tron-danger font-semibold py-3"
+                      onClick={() => setAccountStatus(u.id, "rejected")}
+                    >
+                      ⛔ Rechazar
+                    </button>
+
+                    <button
+                      className="tron-btn tron-muted font-semibold py-3"
+                      onClick={() => setAccountStatus(u.id, "blocked")}
+                    >
+                      🚫 Bloquear
+                    </button>
+
+                    <button
+                      className="tron-btn font-semibold py-3"
+                      onClick={() => setAccountStatus(u.id, "pending")}
+                    >
+                      ↩️ Pendiente
+                    </button>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      className="tron-btn tron-muted font-semibold py-3"
+                      onClick={() => openEditUser(u)}
+                    >
+                      ✏️ Editar
+                    </button>
+
+                    <button
+                      className="tron-btn tron-danger font-semibold py-3"
+                      onClick={() => deleteAccount(u.id, u.fullName)}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -512,7 +659,11 @@ export default function ManagerDashboard() {
             </div>
 
             <div className="grid md:grid-cols-3 gap-2">
-              <select className="tron-select" value={svcStatus} onChange={(e) => setSvcStatus(e.target.value)}>
+              <select
+                className="tron-select"
+                value={svcStatus}
+                onChange={(e) => setSvcStatus(e.target.value)}
+              >
                 <option value="all">🧩 Estado: Todos</option>
                 <option value="created">🧾 Creado</option>
                 <option value="matched">🤝 Conectado</option>
@@ -522,7 +673,11 @@ export default function ManagerDashboard() {
                 <option value="rated">⭐ Evaluado</option>
               </select>
 
-              <select className="tron-select" value={svcMode} onChange={(e) => setSvcMode(e.target.value)}>
+              <select
+                className="tron-select"
+                value={svcMode}
+                onChange={(e) => setSvcMode(e.target.value)}
+              >
                 <option value="all">🧩 Modo: Todos</option>
                 <option value="now">⚡ Ahora</option>
                 <option value="schedule">📅 Agenda</option>
@@ -543,11 +698,17 @@ export default function ManagerDashboard() {
           </div>
 
           {services.length === 0 ? (
-            <div className="tron-card p-6 text-white/70">No hay servicios con esos filtros.</div>
+            <div className="tron-card p-6 text-white/70">
+              No hay servicios con esos filtros.
+            </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {services.map((s) => (
-                <button key={s.id} className="tron-btn w-full text-left" onClick={() => openService(s)}>
+                <button
+                  key={s.id}
+                  className="tron-btn w-full text-left"
+                  onClick={() => openService(s)}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold">
@@ -555,15 +716,19 @@ export default function ManagerDashboard() {
                       </div>
 
                       <div className="text-xs text-white/60 mt-1">
-                        Cliente: <b>{s.clientName || "—"}</b> • 💳 {moneyCLP(s.amountCLP)}
+                        Cliente: <b>{s.clientName || "—"}</b> • 💳{" "}
+                        {moneyCLP(s.amountCLP)}
                       </div>
 
                       <div className="text-xs text-white/55 mt-1">
-                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID {String(s.id).slice(0, 6)}…
+                        Intérprete: <b>{s.interpreterName || "—"}</b> • ID{" "}
+                        {String(s.id).slice(0, 6)}…
                       </div>
                     </div>
 
-                    <Chip>{s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}</Chip>
+                    <Chip>
+                      {s.mode === "video" ? "🎥" : s.mode === "schedule" ? "📅" : "⚡"}
+                    </Chip>
                   </div>
                 </button>
               ))}
@@ -576,7 +741,8 @@ export default function ManagerDashboard() {
                 <div className="panel-head">
                   <div className="text-2xl font-semibold h-title">Service detail</div>
                   <div className="text-white/70 mt-2">
-                    {statusServiceLabel(selectedService.status)} • {modeLabel(selectedService.mode)}
+                    {statusServiceLabel(selectedService.status)} •{" "}
+                    {modeLabel(selectedService.mode)}
                   </div>
                 </div>
 
@@ -612,11 +778,17 @@ export default function ManagerDashboard() {
 
                 <div className="mt-4 tron-card p-5">
                   <div className="panel-head">
-                    <div className="text-lg font-semibold h-title">Interpreter registry</div>
+                    <div className="text-lg font-semibold h-title">
+                      Interpreter registry
+                    </div>
                   </div>
 
                   <div className="grid md:grid-cols-[1fr_auto] gap-2">
-                    <select className="tron-select" value={selectedInterpreterId} onChange={(e) => setSelectedInterpreterId(e.target.value)}>
+                    <select
+                      className="tron-select"
+                      value={selectedInterpreterId}
+                      onChange={(e) => setSelectedInterpreterId(e.target.value)}
+                    >
                       <option value="">Selecciona intérprete activo</option>
                       {activeInterpreters.map((i) => (
                         <option key={i.id} value={i.id}>
@@ -625,7 +797,10 @@ export default function ManagerDashboard() {
                       ))}
                     </select>
 
-                    <button className="tron-btn tron-primary px-4 py-3 font-semibold" onClick={assignInterpreter}>
+                    <button
+                      className="tron-btn tron-primary px-4 py-3 font-semibold"
+                      onClick={assignInterpreter}
+                    >
                       ✅ Asignar
                     </button>
                   </div>
@@ -634,14 +809,16 @@ export default function ManagerDashboard() {
                 {selectedService.mode === "video" && (
                   <div className="mt-4 tron-card p-5">
                     <div className="panel-head">
-                      <div className="text-lg font-semibold h-title">Video call center</div>
+                      <div className="text-lg font-semibold h-title">
+                        Video call center
+                      </div>
                     </div>
 
                     <button
                       className="tron-btn tron-primary w-full py-3 font-semibold"
-                      onClick={() => window.open(`https://meet.jit.si/InterpreteYa-${selectedService.id}`, "_blank")}
+                      onClick={() => nav(`/video/${selectedService.id}`)}
                     >
-                      🎥 Abrir videollamada
+                      🎥 Abrir videollamada dentro de InterpreteYa
                     </button>
                   </div>
                 )}
@@ -649,15 +826,40 @@ export default function ManagerDashboard() {
                 <div className="mt-4 glow-line" />
 
                 <div className="mt-4 grid md:grid-cols-3 gap-2">
-                  <button className="tron-btn tron-muted font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "finished", finishedAt: Date.now() })}>
+                  <button
+                    className="tron-btn tron-muted font-semibold py-3"
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "finished",
+                        finishedAt: Date.now(),
+                      })
+                    }
+                  >
                     🏁 Marcar Finalizado
                   </button>
 
-                  <button className="tron-btn tron-primary font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "paid", paidAt: Date.now() })}>
+                  <button
+                    className="tron-btn tron-primary font-semibold py-3"
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "paid",
+                        paidAt: Date.now(),
+                      })
+                    }
+                  >
                     💳 Marcar Pagado
                   </button>
 
-                  <button className="tron-btn font-semibold py-3" onClick={() => setServicePatch(selectedService.id, { status: "rated", ratedAt: Date.now(), rating: 5 })}>
+                  <button
+                    className="tron-btn font-semibold py-3"
+                    onClick={() =>
+                      setServicePatch(selectedService.id, {
+                        status: "rated",
+                        ratedAt: Date.now(),
+                        rating: 5,
+                      })
+                    }
+                  >
                     ⭐ Marcar Evaluado
                   </button>
                 </div>
@@ -666,6 +868,92 @@ export default function ManagerDashboard() {
           </Modal>
         </div>
       )}
+
+      <Modal open={!!editUser} onClose={() => setEditUser(null)}>
+        {!editUser ? null : (
+          <div>
+            <div className="panel-head">
+              <div className="text-2xl font-semibold h-title">✏️ Editar cuenta</div>
+              <div className="text-white/70 mt-2">
+                Solo gerente puede modificar datos de usuarios e intérpretes.
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              <div>
+                <label className="text-sm text-white/70">Nombre completo</label>
+                <input
+                  className="tron-input mt-1"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-white/70">Correo</label>
+                <input
+                  className="tron-input mt-1"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-white/70">RUT</label>
+                <input
+                  className="tron-input mt-1"
+                  value={editRut}
+                  onChange={(e) => setEditRut(e.target.value)}
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-white/70">Tipo</label>
+                  <select
+                    className="tron-select mt-1"
+                    value={editProfileType}
+                    onChange={(e) => setEditProfileType(e.target.value)}
+                  >
+                    <option value="user">🧏‍♀️ Usuario</option>
+                    <option value="interpreter">🧑‍💼 Intérprete</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-white/70">Estado</label>
+                  <select
+                    className="tron-select mt-1"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                  >
+                    <option value="pending">⏳ Pendiente</option>
+                    <option value="active">✅ Activo</option>
+                    <option value="blocked">🚫 Bloqueado</option>
+                    <option value="rejected">⛔ Rechazado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                <button
+                  className="tron-btn tron-muted py-3 font-semibold"
+                  onClick={() => setEditUser(null)}
+                >
+                  ⬅️ Cancelar
+                </button>
+
+                <button
+                  className="tron-btn tron-primary py-3 font-semibold"
+                  onClick={saveEditUser}
+                >
+                  ✅ Guardar cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
