@@ -1,31 +1,32 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { supabase } from "../lib/supabaseClient";
+console.log("SUPABASE:", supabase);
 
-function GlowTag({ children, danger }) {
-  return (
-    <span className={danger ? "aether-tag-danger" : "tron-chip"}>
-      {children}
-    </span>
-  );
+function GlowTag({ children }) {
+  return <span className="tron-chip">{children}</span>;
 }
 
-function QuickCard({ icon, title, desc, onClick, danger }) {
+function Tile({ icon, title, desc, onClick, disabled }) {
   return (
     <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={
-        "tron-btn w-full text-left p-4 " + (danger ? "tron-danger" : "")
+        "tron-btn w-full text-left " +
+        (disabled ? "opacity-55 cursor-not-allowed" : "")
       }
-      onClick={onClick}
     >
       <div className="flex items-start gap-3">
-        <div className="w-14 h-14 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center text-3xl shrink-0">
+        <div className="w-12 h-12 rounded-xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center text-2xl shrink-0">
           {icon}
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="font-bold text-lg">{title}</div>
-          <div className="text-sm text-white/65 mt-1">{desc}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold">{title}</div>
+          <div className="text-sm text-white/70 mt-1">{desc}</div>
         </div>
 
         <div className="text-xl opacity-70">➜</div>
@@ -34,29 +35,69 @@ function QuickCard({ icon, title, desc, onClick, danger }) {
   );
 }
 
-function StatCard({ icon, label, value, hint }) {
+function PanelTitle({ title, subtitle, rightTag }) {
   return (
-    <div className="aether-mini-metric">
-      <div className="text-3xl">{icon}</div>
-      <div className="aether-mini-value mt-2">{value}</div>
-      <div className="aether-mini-label">{label}</div>
-      {hint && <div className="text-xs text-white/50 mt-1">{hint}</div>}
+    <div className="aether-header">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="aether-title">{title}</div>
+          {subtitle && <div className="aether-subtitle">{subtitle}</div>}
+        </div>
+
+        {rightTag ? <GlowTag>{rightTag}</GlowTag> : null}
+      </div>
     </div>
   );
 }
 
-function FeatureCard({ icon, title, desc }) {
+function NeonCard({ icon, title, desc, button, onClick }) {
   return (
-    <div className="aether-glow-box p-4">
-      <div className="text-3xl">{icon}</div>
-      <div className="font-bold mt-3">{title}</div>
-      <div className="text-sm text-white/65 mt-2">{desc}</div>
+    <div className="aether-glow-box p-4 grid gap-3">
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 rounded-xl border border-cyan-300/30 bg-cyan-300/10 grid place-items-center text-2xl">
+          {icon}
+        </div>
+
+        <div>
+          <div className="font-semibold">{title}</div>
+          <div className="text-sm text-white/70 mt-1">{desc}</div>
+        </div>
+      </div>
+
+      {button && (
+        <button className="tron-btn tron-primary py-3 font-semibold" onClick={onClick}>
+          {button}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MiniSignal({ label, value }) {
+  return (
+    <div className="aether-glow-box p-3">
+      <div className="text-xs text-white/50 uppercase tracking-[.12em]">
+        {label}
+      </div>
+      <div className="font-semibold mt-1">{value}</div>
     </div>
   );
 }
 
 export default function Home() {
   const nav = useNavigate();
+    useEffect(() => {
+    testConnection();
+  }, []);
+
+  async function testConnection() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*");
+
+    console.log("✅ SUPABASE DATA:", data);
+    console.log("❌ SUPABASE ERROR:", error);
+  }
   const { user } = useAuth();
   const outlet = useOutletContext() || {};
 
@@ -66,251 +107,206 @@ export default function Home() {
     zone: "all",
   };
 
-  const panelRoute = useMemo(() => {
-    if (!user) return "/login";
-    if (user.role === "manager") return "/gerente";
-    if (user.profileType === "interpreter") return "/interprete";
-    return "/usuario";
-  }, [user]);
+  const modeLabel =
+    filters.mode === "now"
+      ? "⚡ Ahora"
+      : filters.mode === "schedule"
+      ? "📅 Agenda"
+      : "🎥 Video";
 
-  const openSolicitud = (type = "normal") => {
+  const serviceLabel =
+    filters.service === "tramite"
+      ? "🧾 Trámite"
+      : filters.service === "reunion"
+      ? "👥 Reunión"
+      : filters.service === "entrevista"
+      ? "💼 Entrevista"
+      : filters.service === "evento"
+      ? "🎤 Evento"
+      : "🧩 Todos";
+
+  const zoneLabel =
+    filters.zone === "norte"
+      ? "🌵 Norte"
+      : filters.zone === "centro"
+      ? "🏙️ Centro"
+      : filters.zone === "sur"
+      ? "🌲 Sur"
+      : "📍 Todas";
+
+  const goPanel = () => {
     if (!user) return nav("/login");
     if (user.role === "manager") return nav("/gerente");
     if (user.profileType === "interpreter") return nav("/interprete");
-
-    nav("/solicitud", {
-      state: type === "sos" ? { sos: true } : {},
-    });
+    return nav("/usuario");
   };
 
-  const modeLabel =
-    filters.mode === "video"
-      ? "🎥 Video"
-      : filters.mode === "schedule"
-      ? "📅 Agenda"
-      : "⚡ Ahora";
+  const nextAction = useMemo(() => {
+    if (filters.mode === "video") {
+      return {
+        icon: "🎥",
+        title: "Solicitar por videollamada",
+        path: "/solicitud",
+      };
+    }
+
+    if (filters.mode === "schedule") {
+      return {
+        icon: "📅",
+        title: "Agendar intérprete",
+        path: "/solicitud",
+      };
+    }
+
+    return {
+      icon: "⚡",
+      title: "Solicitar ahora",
+      path: "/solicitud",
+    };
+  }, [filters.mode]);
 
   return (
-    <div className="grid gap-5">
-      {/* HERO */}
-      <section className="aether-panel p-4 md:p-6">
-        <div className="grid xl:grid-cols-[280px_1fr_.75fr] gap-6 items-center">
-          <div className="flex justify-center">
-            <div className="logo-frame w-full max-w-[250px]">
+    <div className="grid gap-4">
+      {/* HERO PRINCIPAL */}
+      <section className="aether-shell">
+        <PanelTitle
+          title="🤟 InterpreteYa | Centro de acceso LSCh"
+          subtitle="Tecnología autónoma · comunidad sorda · intérpretes · inclusión real"
+          rightTag={user ? "✅ Sesión activa" : "🔒 Invitado"}
+        />
+
+        <div className="p-4 md:p-6 grid xl:grid-cols-[260px_1fr_.85fr] gap-5 items-stretch">
+          {/* LOGO */}
+          <div className="flex justify-center xl:justify-start">
+            <div className="w-full max-w-[220px] logo-frame p-2">
               <div className="logo-inner">
                 <img
                   src="/logo-interpreteya.png"
-                  alt="InterpreteYa"
+                  alt="Logo InterpreteYa"
                   className="logo-img"
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
+                    const fallback = e.currentTarget.nextElementSibling;
+                    if (fallback) fallback.style.display = "grid";
                   }}
                 />
+
+                <div
+                  className="hidden w-full h-[130px] md:h-[148px] place-items-center text-center p-4"
+                  style={{ display: "none" }}
+                >
+                  <div>
+                    <div className="text-5xl">🤟</div>
+                    <div className="mt-3 text-sm font-semibold">
+                      Logo InterpreteYa
+                    </div>
+                    <div className="text-xs text-white/60 mt-2">
+                      Usa <b>public/logo-interpreteya.png</b>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <GlowTag>🤟 Comunidad Sorda</GlowTag>
-              <GlowTag>🎥 Video</GlowTag>
-              <GlowTag>📍 Chile</GlowTag>
-              {user ? <GlowTag>✅ Sesión activa</GlowTag> : <GlowTag>🔒 Invitado</GlowTag>}
+          {/* TEXTO CENTRAL */}
+          <div className="grid gap-4 content-center">
+            <div>
+              <div className="text-3xl md:text-5xl font-semibold h-title leading-tight">
+                InterpreteYa
+              </div>
+
+              <div className="text-white/85 mt-4 text-base md:text-lg">
+                Plataforma autónoma creada por y para la comunidad sorda chilena.
+              </div>
+
+              <div className="text-white/70 mt-3">
+                Conectamos usuarios sordos, intérpretes de LSCh, empresas aliadas
+                y organizaciones de la comunidad, con servicios presenciales,
+                agendados y por videollamada.
+              </div>
             </div>
 
-            <h1 className="text-4xl md:text-6xl font-black h-title leading-tight">
-              InterpreteYa
-            </h1>
+            <div className="aether-circuit" />
 
-            <p className="text-white/85 text-lg md:text-xl mt-5 max-w-3xl">
-              Plataforma de interpretación para la comunidad sorda de Chile.
-              Solicita intérpretes por videollamada, agenda o atención urgente.
-            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {!user ? (
+                <>
+                  <button
+                    className="tron-btn tron-primary font-semibold py-3"
+                    onClick={() => nav("/login")}
+                  >
+                    🔐 Ingresar
+                  </button>
 
-            <p className="text-white/60 mt-3 max-w-3xl">
-              Diseño accesible, visual, rápido y cómodo para usuarios sordos,
-              intérpretes, empresas, hospitales, tribunales y organizaciones.
-            </p>
+                  <button
+                    className="tron-btn font-semibold py-3"
+                    onClick={() => nav("/register")}
+                  >
+                    ✍️ Registrarse
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="tron-btn tron-primary font-semibold py-3"
+                    onClick={goPanel}
+                  >
+                    🚀 Ir a mi panel
+                  </button>
 
-            <div className="mt-6 grid sm:grid-cols-3 gap-3">
-              <button
-                className="tron-btn tron-primary py-4 font-bold"
-                onClick={() => openSolicitud("video")}
-              >
-                🎥 Solicitar ahora
-              </button>
-
-              <button
-                className="tron-btn py-4 font-bold"
-                onClick={() => openSolicitud("agenda")}
-              >
-                📅 Reservar
-              </button>
-
-              <button
-                className="tron-btn tron-danger py-4 font-bold"
-                onClick={() => openSolicitud("sos")}
-              >
-                🚨 Emergencia SOS
-              </button>
+                  <button
+                    className="tron-btn font-semibold py-3"
+                    onClick={() => nav("/solicitud")}
+                  >
+                    🤟 Solicitar intérprete
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="grid gap-3">
+          {/* PANEL DERECHO */}
+          <div className="grid gap-3 content-center">
+            <MiniSignal label="Modo activo" value={modeLabel} />
+            <MiniSignal label="Servicio" value={serviceLabel} />
+            <MiniSignal label="Zona" value={zoneLabel} />
+
             <div className="aether-glow-box p-4">
               <div className="flex items-center gap-2">
                 <span className="aether-dot" />
-                <div className="font-bold">Sistema activo</div>
+                <div className="font-semibold">Sistema accesible</div>
               </div>
 
               <div className="text-sm text-white/65 mt-3">
-                Modo actual: <b>{modeLabel}</b>
+                Diseñado para lectura rápida, navegación clara y apoyo visual
+                con emojis para usuarios sordos.
               </div>
 
               <div className="aether-line" />
 
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-2xl">⚡</div>
-                  <div className="text-xs text-white/55">Rápido</div>
-                </div>
-                <div>
-                  <div className="text-2xl">🔒</div>
-                  <div className="text-xs text-white/55">Seguro</div>
-                </div>
-                <div>
-                  <div className="text-2xl">🤟</div>
-                  <div className="text-xs text-white/55">LSCh</div>
-                </div>
+              <div className="aether-light-row">
+                <div className="aether-light" />
+                <div className="aether-light" />
+                <div className="aether-light" />
               </div>
             </div>
-
-            <button className="tron-btn tron-primary py-4 font-bold" onClick={() => nav(panelRoute)}>
-              🚀 Ir a mi panel
-            </button>
           </div>
         </div>
       </section>
 
-      {/* ACCESOS RÁPIDOS */}
-      <section className="aether-shell">
-        <div className="aether-header">
-          <div className="aether-title">⚡ Accesos rápidos</div>
-          <div className="aether-subtitle">
-            Acciones principales para usar InterpreteYa
-          </div>
-        </div>
-
-        <div className="p-4 grid md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <QuickCard
-            icon="🎥"
-            title="Video inmediato"
-            desc="Solicita intérprete por videollamada."
-            onClick={() => openSolicitud("video")}
-          />
-
-          <QuickCard
-            icon="📅"
-            title="Agendar"
-            desc="Reserva intérprete para otra fecha."
-            onClick={() => openSolicitud("agenda")}
-          />
-
-          <QuickCard
-            icon="🧑‍💼"
-            title="Intérpretes"
-            desc="Ver perfiles disponibles."
-            onClick={() => nav("/interpretes")}
-          />
-
-          <QuickCard
-            icon="🚨"
-            title="SOS"
-            desc="Emergencia con prioridad alta."
-            danger
-            onClick={() => openSolicitud("sos")}
-          />
-        </div>
-      </section>
-
-      {/* ESTADÍSTICAS VISUALES */}
-      <section className="aether-shell">
-        <div className="aether-header">
-          <div className="aether-title">📊 Plataforma Beta</div>
-          <div className="aether-subtitle">
-            Indicadores visuales para presentar el proyecto
-          </div>
-        </div>
-
-        <div className="p-4 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <StatCard icon="🧏" label="Usuarios" value="Beta" hint="Comunidad sorda" />
-          <StatCard icon="🤟" label="Intérpretes" value="LSCh" hint="Validación gerente" />
-          <StatCard icon="🎥" label="Videollamada" value="Jitsi" hint="Sala automática" />
-          <StatCard icon="🚨" label="SOS" value="Prioridad" hint="Emergencias" />
-        </div>
-      </section>
-
-      {/* ECOSISTEMA */}
-      <section className="aether-shell">
-        <div className="aether-header">
-          <div className="aether-title">🌐 Ecosistema InterpreteYa</div>
-          <div className="aether-subtitle">
-            Usuarios, intérpretes, empresas y comunidad conectados
-          </div>
-        </div>
-
-        <div className="p-4 grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-          <FeatureCard
-            icon="🧏"
-            title="Usuarios sordos"
-            desc="Solicitudes visuales, simples y rápidas para acceder a comunicación."
-          />
-
-          <FeatureCard
-            icon="🤟"
-            title="Intérpretes LSCh"
-            desc="Panel de trabajos, disponibilidad, videollamada e historial."
-          />
-
-          <FeatureCard
-            icon="🧑‍💼"
-            title="Gerente"
-            desc="Aprueba, bloquea, asigna intérpretes, revisa pagos y SOS."
-          />
-
-          <FeatureCard
-            icon="🏥"
-            title="Salud"
-            desc="Apoyo en hospitales, controles médicos y atención urgente."
-          />
-
-          <FeatureCard
-            icon="⚖️"
-            title="Justicia"
-            desc="Apoyo en tribunales, trámites legales y denuncias."
-          />
-
-          <FeatureCard
-            icon="🏢"
-            title="Empresas"
-            desc="Inclusión laboral, reuniones, entrevistas y capacitaciones."
-          />
-        </div>
-      </section>
-
-      {/* VIDEO / PRESENTACIÓN */}
-      <section className="grid xl:grid-cols-[1.35fr_.85fr] gap-4">
+      {/* VIDEO HERO / TUTORIALES */}
+      <section className="grid xl:grid-cols-[1.55fr_.9fr] gap-4">
         <div className="aether-shell">
-          <div className="aether-header">
-            <div className="aether-title">🎬 Video tutorial</div>
-            <div className="aether-subtitle">
-              Presentación visual para explicar la plataforma
-            </div>
-          </div>
+          <PanelTitle
+            title="🎬 Video tutorial principal"
+            subtitle="Guía visual para entender cómo funciona la plataforma"
+            rightTag="📱 Mobile First"
+          />
 
           <div className="p-4">
             <div className="media-frame">
-              <div className="media-screen aspect-video">
+  <div className="media-screen aspect-video">
                 <video
                   className="w-full h-full object-cover"
                   controls
@@ -323,85 +319,313 @@ export default function Home() {
                 </video>
               </div>
             </div>
+
+            <div className="mt-3 text-xs text-white/55">
+              P<b>ronto...</b>
+            </div>
           </div>
         </div>
 
         <div className="aether-shell">
-          <div className="aether-header">
-            <div className="aether-title">🤟 Accesibilidad visual</div>
-            <div className="aether-subtitle">
-              Pensado para lectura simple y clara
+          <PanelTitle
+            title="👋 Bienvenida"
+            subtitle="Presentación corta para usuarios nuevos"
+            rightTag="✨ Intro"
+          />
+
+          <div className="p-4 grid gap-3">
+            <div className="media-frame">
+  <div className="media-screen aspect-video">
+                <video
+                  className="w-full h-full object-cover"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  poster="/banner-bienvenido.png"
+                >
+                  <source src="/bienvenido-interpreteya.mp4" type="video/mp4" />
+                  Tu navegador no soporta video HTML5.
+                </video>
+              </div>
+            </div>
+
+            <div className="aether-glow-box p-4 text-sm text-white/70">
+              💡 Ideal para explicar en pocos segundos qué es InterpreteYa y cómo
+              ayuda a la comunicación sin barreras.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ACCESOS RÁPIDOS */}
+      <section className="aether-shell">
+        <PanelTitle
+          title="⚡ Accesos rápidos"
+          subtitle="Botones principales para moverse dentro de InterpreteYa"
+          rightTag="🧭 Navegación"
+        />
+
+        <div className="p-4 grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <Tile
+            icon={nextAction.icon}
+            title={nextAction.title}
+            desc="Crea una solicitud de intérprete según el modo activo."
+            disabled={!user}
+            onClick={() => nav(nextAction.path)}
+          />
+
+          <Tile
+            icon="🗺️"
+            title="Mapa de intérpretes"
+            desc="Revisa ubicación y disponibilidad dentro del sistema."
+            disabled={false}
+            onClick={() => nav("/mapa")}
+          />
+
+          <Tile
+            icon="🧑‍💼"
+            title="Intérpretes disponibles"
+            desc="Explora perfiles activos de intérpretes LSCh."
+            disabled={false}
+            onClick={() => nav("/interpretes")}
+          />
+
+          <Tile
+            icon="🎓"
+            title="Cursos LSCh"
+            desc="Aprendizaje, talleres y formación desde la comunidad sorda."
+            disabled={false}
+            onClick={() => nav("/cursos")}
+          />
+
+          <Tile
+            icon="⚖️"
+            title="Denuncias y reportes"
+            desc="Reporta barreras comunicacionales y genera evidencia."
+            disabled={!user}
+            onClick={() => nav("/denuncias")}
+          />
+
+          <Tile
+            icon="🤝"
+            title="Alianzas"
+            desc="Convenios con empresas y organizaciones de la comunidad."
+            disabled={false}
+            onClick={() => nav("/alianzas")}
+          />
+        </div>
+
+        {!user && (
+          <div className="px-4 pb-4 text-xs text-white/55">
+            🔒 Para solicitar intérprete o crear reportes debes iniciar sesión.
+          </div>
+        )}
+      </section>
+
+      {/* MAPA / DISPONIBILIDAD SIMULADA */}
+      <section className="aether-shell">
+        <PanelTitle
+          title="🗺️ Centro de cobertura"
+          subtitle="Vista rápida de zonas, intérpretes y atención accesible"
+          rightTag="📍 Santiago"
+        />
+
+        <div className="p-4 grid lg:grid-cols-[1.2fr_.8fr] gap-4">
+          <div className="aether-glow-box p-4">
+            <div className="aether-circuit min-h-[220px]" />
+
+            <div className="mt-4 grid sm:grid-cols-3 gap-2">
+              <GlowTag>🌵 Norte</GlowTag>
+              <GlowTag>🏙️ Centro</GlowTag>
+              <GlowTag>🌲 Sur</GlowTag>
             </div>
           </div>
 
-          <div className="p-4 grid gap-3">
-            <FeatureCard
-              icon="👁️"
-              title="Íconos grandes"
-              desc="Menos texto complejo, más señales visuales."
+          <div className="grid gap-3">
+            <NeonCard
+              icon="📡"
+              title="Cobertura activa"
+              desc="Vista preparada para integrar mapa real, GPS o disponibilidad por zona."
+              button="🗺️ Ver mapa"
+              onClick={() => nav("/mapa")}
             />
 
-            <FeatureCard
-              icon="📱"
-              title="Responsive"
-              desc="Funciona cómodo en celular, tablet y PC."
-            />
-
-            <FeatureCard
-              icon="💙"
-              title="Comunidad"
-              desc="Proyecto autónomo con enfoque social y tecnológico."
+            <NeonCard
+              icon="🧑‍💼"
+              title="Intérpretes"
+              desc="Consulta intérpretes disponibles y perfiles dentro de la plataforma."
+              button="🔎 Ver intérpretes"
+              onClick={() => nav("/interpretes")}
             />
           </div>
         </div>
       </section>
 
-      {/* RUTAS PRINCIPALES */}
+      {/* APOYO COMUNIDAD */}
       <section className="aether-shell">
-        <div className="aether-header">
-          <div className="aether-title">🧭 Navegación principal</div>
-          <div className="aether-subtitle">
-            Módulos importantes de la Beta
+        <PanelTitle
+          title="🤟 Apoyo para la comunidad sorda"
+          subtitle="Módulos principales del ecosistema autónomo"
+          rightTag="💙 Inclusión"
+        />
+
+        <div className="p-4 grid md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <NeonCard
+            icon="🎓"
+            title="Cursos y talleres"
+            desc="Personas sordas pueden enseñar LSCh y generar ingresos."
+            button="Ver cursos ✨"
+            onClick={() => nav("/cursos")}
+          />
+
+          <NeonCard
+            icon="🚨"
+            title="Apoyo urgente"
+            desc="Solicitudes rápidas para momentos importantes o sensibles."
+            button="Solicitar ahora ⚡"
+            onClick={() => nav(user ? "/solicitud" : "/login")}
+          />
+
+          <NeonCard
+            icon="⚖️"
+            title="Defensa LSCh"
+            desc="Reportes y denuncias que pueden generar proyectos de cambio."
+            button="Crear reporte 🛡️"
+            onClick={() => nav(user ? "/denuncias" : "/login")}
+          />
+
+          <NeonCard
+            icon="🤝"
+            title="Empresas aliadas"
+            desc="Accesibilidad, inclusión laboral y convenios directos."
+            button="Ver alianzas 🤝"
+            onClick={() => nav("/alianzas")}
+          />
+        </div>
+      </section>
+
+      {/* PROPUESTA + ECOSISTEMA */}
+      <section className="grid lg:grid-cols-2 gap-4">
+        <div className="aether-shell">
+          <PanelTitle
+            title="📘 Propuesta InterpreteYa"
+            subtitle="Autonomía, negocio social y comunidad"
+            rightTag="📄 Proyecto"
+          />
+
+          <div className="p-4 grid gap-3">
+            <div className="aether-glow-box p-4 text-sm text-white/75">
+              InterpreteYa no representa instituciones públicas. Es una
+              plataforma autónoma que colabora con comunidad, empresas y
+              organizaciones sordas.
+            </div>
+
+            <button
+              className="tron-btn tron-primary py-3 font-semibold"
+              onClick={() => nav("/propuesta")}
+            >
+              📘 Ver propuesta completa
+            </button>
           </div>
         </div>
 
-        <div className="p-4 grid md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <QuickCard icon="🎓" title="Cursos LSCh" desc="Cursos y talleres." onClick={() => nav("/cursos")} />
-          <QuickCard icon="🗺️" title="Mapa" desc="Cobertura e intérpretes." onClick={() => nav("/mapa")} />
-          <QuickCard icon="⚖️" title="Denuncias" desc="Reportes de barreras." onClick={() => nav(user ? "/denuncias" : "/login")} />
-          <QuickCard icon="🤝" title="Alianzas" desc="Empresas y convenios." onClick={() => nav("/alianzas")} />
+        <div className="aether-shell">
+          <PanelTitle
+            title="🌐 Ecosistema autónomo"
+            subtitle="Usuarios, intérpretes, docentes, empresas y comunidad"
+            rightTag="🔗 Red"
+          />
+
+          <div className="p-4 grid gap-3">
+            <div className="aether-glow-box p-4 text-sm text-white/75">
+              El ecosistema conecta solicitud, pago, videollamada, cursos,
+              denuncias, alianzas y evaluación del servicio.
+            </div>
+
+            <button
+              className="tron-btn tron-primary py-3 font-semibold"
+              onClick={() => nav("/ecosistema")}
+            >
+              🌐 Ver ecosistema
+            </button>
+          </div>
         </div>
       </section>
 
       {/* CONTACTO */}
       <section className="aether-shell">
-        <div className="aether-header">
-          <div className="aether-title">📩 Contacto</div>
-          <div className="aether-subtitle">
-            Información para comunidad, intérpretes y empresas
-          </div>
-        </div>
+        <PanelTitle
+          title="📩 Contacto y apoyo"
+          subtitle="Información para comunidad, intérpretes y empresas"
+          rightTag="📍 Chile"
+        />
 
         <div className="p-4 grid md:grid-cols-2 gap-4">
           <div className="aether-glow-box p-4">
-            <div className="font-bold">📧 Correo</div>
+            <div className="font-semibold">📧 Correo</div>
             <div className="text-white/70 mt-2">contacto@interpreteya.cl</div>
 
             <div className="aether-line" />
 
-            <div className="font-bold">📍 Ubicación</div>
-            <div className="text-white/70 mt-2">Santiago, Chile</div>
+            <div className="font-semibold">📱 WhatsApp</div>
+            <div className="text-white/70 mt-2">+56 9 1234 5678</div>
           </div>
 
           <div className="aether-glow-box p-4">
-            <div className="font-bold">💙 Mensaje</div>
-            <div className="text-white/70 mt-2">
-              InterpreteYa busca reducir barreras comunicacionales y mejorar el
-              acceso a salud, justicia, educación, trabajo y trámites.
+            <div className="font-semibold">📍 Ubicación</div>
+            <div className="text-white/70 mt-2">Santiago, Chile</div>
+
+            <div className="aether-line" />
+
+            <div className="text-sm text-white/70">
+              Plataforma pensada para accesibilidad, comunicación clara y apoyo
+              real para la comunidad sorda.
             </div>
           </div>
         </div>
       </section>
+
+      {/* FOOTER */}
+      <footer className="aether-shell">
+        <div className="p-4 md:p-5">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div>
+              <div className="font-semibold text-lg">
+                🤟 InterpreteYa — Comunicación sin barreras
+              </div>
+
+              <div className="text-sm text-white/60 mt-2 max-w-2xl">
+                Plataforma autónoma para conectar usuarios sordos, intérpretes,
+                empresas y comunidad con tecnología accesible.
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:flex gap-2">
+              <button className="tron-btn py-2 px-4" onClick={() => nav("/propuesta")}>
+                📘 Propuesta
+              </button>
+
+              <button className="tron-btn py-2 px-4" onClick={() => nav("/alianzas")}>
+                🤝 Alianzas
+              </button>
+
+              <button className="tron-btn py-2 px-4" onClick={() => nav("/cursos")}>
+                🎓 Cursos
+              </button>
+
+              <button className="tron-btn py-2 px-4" onClick={() => nav("/login")}>
+                🔐 Login
+              </button>
+            </div>
+          </div>
+
+          <div className="aether-line" />
+
+          <div className="text-xs text-white/50">
+            💙 Diseño futurista inspirado en tecnología, accesibilidad e inclusión.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
