@@ -20,35 +20,24 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("iy_session_v1");
-
-      if (raw) {
-        setUser(JSON.parse(raw));
-      }
+      if (raw) setUser(JSON.parse(raw));
     } catch {}
   }, []);
 
   const persist = (u) => {
     setUser(u);
-
-    localStorage.setItem(
-      "iy_session_v1",
-      JSON.stringify(u)
-    );
+    localStorage.setItem("iy_session_v1", JSON.stringify(u));
   };
 
   const logout = async () => {
     setUser(null);
-
     localStorage.removeItem("iy_session_v1");
   };
 
-  // LOGIN CLIENTE
   const login = async ({ rut, password }) => {
     const u = await loginByRut(rut, password);
 
-    if (!u) {
-      throw new Error("Usuario no encontrado");
-    }
+    if (!u) throw new Error("Usuario no encontrado");
 
     if (u.status === "pending") {
       const err = new Error("PENDING");
@@ -62,28 +51,16 @@ export function AuthProvider({ children }) {
       throw err;
     }
 
-    persist({
-      id: u.id,
-      role: u.role,
-      profileType: u.profile_type,
-      fullName: u.full_name,
-      rut: u.rut,
-      email: u.email,
-      status: u.status,
-    });
+    if (u.status === "blocked") {
+      const err = new Error("BLOCKED");
+      err.code = "BLOCKED";
+      throw err;
+    }
 
-    return u;
-  };
-
-  // LOGIN GERENTE
-  const loginManagerByEmail = async ({
-    email,
-    password,
-  }) => {
-    const u = await loginManager(email, password);
-
-    if (!u) {
-      throw new Error("Gerente no encontrado");
+    if (u.status === "deleted") {
+      const err = new Error("DELETED");
+      err.code = "DELETED";
+      throw err;
     }
 
     persist({
@@ -99,13 +76,31 @@ export function AuthProvider({ children }) {
     return u;
   };
 
-  // REGISTER
+  const loginManagerByEmail = async ({ email, password }) => {
+    const u = await loginManager(email, password);
+
+    if (!u) throw new Error("Gerente no encontrado");
+
+    persist({
+      id: u.id,
+      role: u.role,
+      profileType: u.profile_type,
+      fullName: u.full_name,
+      rut: u.rut,
+      email: u.email,
+      status: u.status,
+    });
+
+    return u;
+  };
+
   const register = async ({
     profileType,
     fullName,
     rut,
     email,
     password,
+    interpreterProfile,
   }) => {
     return await registerUser({
       profileType,
@@ -113,6 +108,7 @@ export function AuthProvider({ children }) {
       rut,
       email,
       password,
+      interpreterProfile,
     });
   };
 
@@ -127,11 +123,7 @@ export function AuthProvider({ children }) {
     [user]
   );
 
-  return (
-    <AuthCtx.Provider value={value}>
-      {children}
-    </AuthCtx.Provider>
-  );
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
 
 export function useAuth() {

@@ -7,7 +7,7 @@ function moneyCLP(n) {
   return "$" + Number(n || 0).toLocaleString("es-CL");
 }
 
-function calcPrice({ mode, serviceType, durationMin }) {
+function calcPrice({ mode, serviceType, durationMin, priority }) {
   let base = 0;
 
   if (mode === "now") base = 12000;
@@ -18,17 +18,24 @@ function calcPrice({ mode, serviceType, durationMin }) {
   if (serviceType === "reunion") extraType = 4000;
   else if (serviceType === "entrevista") extraType = 5000;
   else if (serviceType === "evento") extraType = 8000;
+  else if (serviceType === "emergencia") extraType = 10000;
 
   let extraDuration = 0;
   if (durationMin > 30) {
     extraDuration = Math.ceil((durationMin - 30) / 30) * 5000;
   }
 
-  return base + extraType + extraDuration;
+  const extraPriority = priority === "high" ? 8000 : 0;
+
+  return base + extraType + extraDuration + extraPriority;
 }
 
 function modeText(mode) {
-  return mode === "now" ? "⚡ Ahora" : mode === "schedule" ? "📅 Agenda" : "🎥 Video";
+  return mode === "now"
+    ? "⚡ Ahora"
+    : mode === "schedule"
+    ? "📅 Agenda"
+    : "🎥 Video";
 }
 
 function typeText(type) {
@@ -38,18 +45,25 @@ function typeText(type) {
     ? "👥 Reunión"
     : type === "entrevista"
     ? "💼 Entrevista"
-    : "🎤 Evento";
+    : type === "evento"
+    ? "🎤 Evento"
+    : type === "emergencia"
+    ? "🚨 Emergencia"
+    : "🧩 Servicio";
 }
 
 function zoneText(zone) {
-  return zone === "norte" ? "🌵 Norte" : zone === "centro" ? "🏙️ Centro" : "🌲 Sur";
+  return zone === "norte" ? "🌵 Norte" : zone === "sur" ? "🌲 Sur" : "🏙️ Centro";
 }
 
-function OptionButton({ active, children, onClick }) {
+function OptionButton({ active, children, onClick, danger }) {
   return (
     <button
       type="button"
-      className={`tron-btn font-semibold ${active ? "tron-primary" : ""}`}
+      className={
+        "tron-btn font-semibold " +
+        (active ? (danger ? "tron-danger" : "tron-primary") : "")
+      }
       onClick={onClick}
     >
       {children}
@@ -61,6 +75,10 @@ function randomCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+function makeVideoRoom(serviceId) {
+  return `InterpreteYa-${String(serviceId).replace(/[^a-zA-Z0-9]/g, "")}`;
+}
+
 export default function Solicitud() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -69,6 +87,7 @@ export default function Solicitud() {
   const [serviceType, setServiceType] = useState("tramite");
   const [zone, setZone] = useState("centro");
   const [durationMin, setDurationMin] = useState("30");
+  const [priority, setPriority] = useState("normal"); // normal | high
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [note, setNote] = useState("");
@@ -80,8 +99,9 @@ export default function Solicitud() {
       mode,
       serviceType,
       durationMin: Number(durationMin) || 30,
+      priority,
     });
-  }, [mode, serviceType, durationMin]);
+  }, [mode, serviceType, durationMin, priority]);
 
   const scheduledAt = useMemo(() => {
     if (mode !== "schedule") return null;
@@ -96,6 +116,17 @@ export default function Solicitud() {
       </div>
     );
   }
+
+  const activateSOS = () => {
+    setPriority("high");
+    setMode("video");
+    setServiceType("emergencia");
+    setDurationMin("30");
+
+    if (!note.trim()) {
+      setNote("🚨 Solicitud SOS: necesito intérprete urgente.");
+    }
+  };
 
   const submit = async () => {
     setError("");
@@ -125,8 +156,12 @@ export default function Solicitud() {
         note: note.trim(),
         scheduled_at: scheduledAt,
         status: "created",
+        priority,
         start_code: randomCode(),
         end_code: randomCode(),
+        assigned_by: null,
+        accepted_at: null,
+        video_room: null,
       };
 
       const { data: createdService, error: serviceError } = await supabase
@@ -137,6 +172,11 @@ export default function Solicitud() {
 
       if (serviceError) throw serviceError;
 
+      const videoRoom =
+        mode === "video" || priority === "high"
+          ? makeVideoRoom(createdService.id)
+          : null;
+
       const paymentPayload = {
         type: "service_request",
         ref_id: createdService.id,
@@ -145,7 +185,10 @@ export default function Solicitud() {
         amount_clp: amountCLP,
         status: "paid",
         method: "demo",
-        note: "Pago demo de solicitud de intérprete",
+        note:
+          priority === "high"
+            ? "Pago demo de solicitud SOS / prioridad alta"
+            : "Pago demo de solicitud de intérprete",
       };
 
       const { error: paymentError } = await supabase
@@ -159,49 +202,24 @@ export default function Solicitud() {
         .update({
           status: "paid",
           paid_at: new Date().toISOString(),
+          video_room: videoRoom,
         })
         .eq("id", createdService.id);
 
       if (paidError) throw paidError;
 
-      let assignedInterpreter = null;
-
-      const { data: interpreters, error: interpreterError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("profile_type", "interpreter")
-        .eq("status", "active");
-
-      if (!interpreterError && interpreters?.length > 0) {
-        assignedInterpreter =
-          interpreters[Math.floor(Math.random() * interpreters.length)];
-
-        const { error: assignError } = await supabase
-          .from("services")
-          .update({
-            interpreter_id: assignedInterpreter.id,
-            interpreter_name: assignedInterpreter.full_name,
-            status: "matched",
-          })
-          .eq("id", createdService.id);
-
-        if (assignError) throw assignError;
-      }
-
-      if (assignedInterpreter) {
-        alert(
-          `✅ Solicitud creada, pago registrado y asignada a ${assignedInterpreter.full_name}`
-        );
-      } else {
-        alert(
-          "✅ Solicitud creada y pago registrado. Aún no hay intérprete disponible."
-        );
-      }
+      alert(
+        priority === "high"
+          ? "🚨 Solicitud SOS creada y pago registrado. El gerente verá esta solicitud con prioridad alta."
+          : "✅ Solicitud creada y pago registrado. El gerente asignará un intérprete disponible."
+      );
 
       nav("/usuario", { replace: true });
     } catch (err) {
       console.log("Solicitud error:", err);
-      setError("❌ No se pudo crear la solicitud. Revisa consola o permisos de Supabase.");
+      setError(
+        "❌ No se pudo crear la solicitud. Revisa consola o permisos de Supabase."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -215,11 +233,13 @@ export default function Solicitud() {
             <div>
               <div className="aether-title">🤟 Solicitud de intérprete</div>
               <div className="aether-subtitle">
-                Crear servicio real · pago demo · asignación automática
+                Servicio real · pago demo · sala video automática · SOS
               </div>
             </div>
 
-            <span className="aether-tag-ok">CLIENTE ACTIVO</span>
+            <span className={priority === "high" ? "aether-tag-danger" : "aether-tag-ok"}>
+              {priority === "high" ? "🚨 PRIORIDAD SOS" : "CLIENTE ACTIVO"}
+            </span>
           </div>
         </div>
 
@@ -227,9 +247,16 @@ export default function Solicitud() {
           <div className="aether-block">
             <div className="aether-block-head">Datos del cliente</div>
             <div className="aether-block-body grid gap-2 text-sm text-white/75">
-              <div>👤 Cliente: <b>{user.fullName}</b></div>
-              <div>🪪 RUT: <b>{user.rut}</b></div>
-              <div>📡 Estado: <b>Preparando solicitud</b></div>
+              <div>
+                👤 Cliente: <b>{user.fullName}</b>
+              </div>
+              <div>
+                🪪 RUT: <b>{user.rut}</b>
+              </div>
+              <div>
+                📡 Estado:{" "}
+                <b>{priority === "high" ? "Emergencia SOS" : "Preparando solicitud"}</b>
+              </div>
             </div>
           </div>
 
@@ -241,6 +268,26 @@ export default function Solicitud() {
               </div>
               <div className="text-sm text-white/60 mt-2">
                 El pago se registrará en modo demo dentro de Supabase.
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  className="tron-btn tron-danger py-3 font-semibold"
+                  onClick={activateSOS}
+                >
+                  🚨 Activar Emergencia SOS
+                </button>
+
+                {priority === "high" && (
+                  <button
+                    type="button"
+                    className="tron-btn tron-muted py-3 font-semibold"
+                    onClick={() => setPriority("normal")}
+                  >
+                    ↩️ Quitar SOS
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -295,6 +342,7 @@ export default function Solicitud() {
                   <option value="reunion">👥 Reunión</option>
                   <option value="entrevista">💼 Entrevista</option>
                   <option value="evento">🎤 Evento</option>
+                  <option value="emergencia">🚨 Emergencia</option>
                 </select>
               </div>
             </div>
@@ -365,7 +413,7 @@ export default function Solicitud() {
               <textarea
                 className="tron-input w-full"
                 rows={4}
-                placeholder="Ej: necesito intérprete para reunión médica, entrevista laboral, trámite, etc."
+                placeholder="Ej: necesito intérprete para reunión médica, entrevista laboral, trámite, emergencia, etc."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -384,10 +432,28 @@ export default function Solicitud() {
           <div className="aether-block">
             <div className="aether-block-head">Datos finales</div>
             <div className="aether-block-body grid gap-2 text-sm text-white/75">
-              <div>Modalidad: <b>{modeText(mode)}</b></div>
-              <div>Tipo: <b>{typeText(serviceType)}</b></div>
-              <div>Duración: <b>{durationMin} min</b></div>
-              <div>Zona: <b>{zoneText(zone)}</b></div>
+              <div>
+                Prioridad:{" "}
+                <b>{priority === "high" ? "🚨 SOS / Alta prioridad" : "✅ Normal"}</b>
+              </div>
+              <div>
+                Modalidad: <b>{modeText(mode)}</b>
+              </div>
+              <div>
+                Tipo: <b>{typeText(serviceType)}</b>
+              </div>
+              <div>
+                Duración: <b>{durationMin} min</b>
+              </div>
+              <div>
+                Zona: <b>{zoneText(zone)}</b>
+              </div>
+
+              {(mode === "video" || priority === "high") && (
+                <div>
+                  🎥 Sala video: <b>Se crea automáticamente</b>
+                </div>
+              )}
 
               {mode === "schedule" && scheduledAt && (
                 <div>
@@ -406,7 +472,7 @@ export default function Solicitud() {
               </div>
 
               <div className="text-xs text-white/55 mt-3">
-                Se registrará el pago demo e intentará asignar un intérprete activo automáticamente.
+                Se registrará el pago demo y quedará pendiente de asignación por gerente o aceptación de intérprete.
               </div>
 
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -422,13 +488,18 @@ export default function Solicitud() {
                 <button
                   type="button"
                   className={
-                    "tron-btn tron-primary py-3 font-semibold " +
+                    "tron-btn py-3 font-semibold " +
+                    (priority === "high" ? "tron-danger " : "tron-primary ") +
                     (submitting ? "opacity-70 cursor-not-allowed" : "")
                   }
                   onClick={submit}
                   disabled={submitting}
                 >
-                  {submitting ? "⏳ Enviando..." : "💳 Pagar y solicitar"}
+                  {submitting
+                    ? "⏳ Enviando..."
+                    : priority === "high"
+                    ? "🚨 Pagar y pedir SOS"
+                    : "💳 Pagar y solicitar"}
                 </button>
               </div>
             </div>

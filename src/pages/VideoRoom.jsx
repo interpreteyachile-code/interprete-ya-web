@@ -20,6 +20,8 @@ function serviceTypeLabel(type) {
     ? "💼 Entrevista"
     : type === "evento"
     ? "🎤 Evento"
+    : type === "emergencia"
+    ? "🚨 Emergencia"
     : "🧩 Servicio";
 }
 
@@ -69,6 +71,8 @@ function mapService(s) {
     finishedAt: s.finished_at,
     ratedAt: s.rated_at,
     createdAt: s.created_at,
+    videoRoom: s.video_room,
+    priority: s.priority || "normal",
   };
 }
 
@@ -149,8 +153,13 @@ export default function VideoRoom() {
       return;
     }
 
+    const finalRoomName =
+      service.videoRoom ||
+      service.video_room ||
+      "InterpreteYa-" + String(roomId).replace(/[^a-zA-Z0-9]/g, "");
+
     const options = {
-      roomName: "interpreteya-" + roomId,
+      roomName: finalRoomName,
       parentNode: container.current,
       width: "100%",
       height: "100%",
@@ -264,13 +273,8 @@ export default function VideoRoom() {
     setVideoMuted((prev) => !prev);
   };
 
-  const addMinute = () => {
-    setSecondsLeft((prev) => prev + 60);
-  };
-
-  const addFiveMinutes = () => {
-    setSecondsLeft((prev) => prev + 300);
-  };
+  const addMinute = () => setSecondsLeft((prev) => prev + 60);
+  const addFiveMinutes = () => setSecondsLeft((prev) => prev + 300);
 
   if (loading) {
     return <div className="tron-card p-6 max-w-2xl mx-auto">🔄 Cargando sala...</div>;
@@ -312,13 +316,16 @@ export default function VideoRoom() {
         <div className="aether-header">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="aether-title">🎥 Sala de videollamada</div>
+              <div className="aether-title">
+                {service.priority === "high" ? "🚨 " : ""}🎥 Sala de videollamada
+              </div>
               <div className="aether-subtitle">
-                InterpreteYa · sala en vivo · {userRoleLabel(user)}
+                InterpreteYa · {service.videoRoom || "Sala automática"} · {userRoleLabel(user)}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {service.priority === "high" && <span className="aether-tag-danger">🚨 SOS</span>}
               <span className={isReady ? "aether-tag-ok" : "aether-tag-warn"}>
                 {isReady ? "● EN VIVO" : "● CONECTANDO"}
               </span>
@@ -364,6 +371,7 @@ export default function VideoRoom() {
                 <div>💳 Monto: <b>{moneyCLP(service.amountCLP)}</b></div>
                 <div>👤 Cliente: <b>{service.clientName || service.clientRut || "—"}</b></div>
                 <div>🧑‍💼 Intérprete: <b>{service.interpreterName || "—"}</b></div>
+                <div>🎥 Sala: <b>{service.videoRoom || "Automática"}</b></div>
                 <div>⏱ Duración base: <b>{durationMinutes} min</b></div>
                 <div>📡 Estado: <b>{service.status === "finished" ? "Finalizado" : isReady ? "En vivo" : "Conectando"}</b></div>
               </div>

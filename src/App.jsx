@@ -1,10 +1,8 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// Layout
 import AppShell from "./app/AppShell";
 
-// Públicas
 import Home from "./pages/Home";
 import Ecosistema from "./pages/Ecosistema";
 import Alianzas from "./pages/Alianzas";
@@ -12,30 +10,25 @@ import Propuesta from "./pages/Propuesta";
 import InterpretesDisponibles from "./pages/InterpretesDisponibles";
 import MapaInterpretes from "./pages/MapaInterpretes";
 
-// Auth
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import LoginGerente from "./pages/LoginGerente";
 import Pending from "./pages/Pending";
 
-// Flujo servicio
 import Solicitud from "./pages/Solicitud";
 import VideoRoom from "./pages/VideoRoom";
 import CalificarServicio from "./pages/CalificarServicio";
 import HistorialServicios from "./pages/HistorialServicios";
 import Denuncias from "./pages/Denuncias";
 
-// Cursos / pagos
 import Cursos from "./pages/Cursos";
 import MisPagos from "./pages/MisPagos";
 import GestionPagos from "./pages/GestionPagos";
 
-// Dashboards
 import UserDashboard from "./pages/UserDashboard";
 import InterpreterDashboard from "./pages/InterpreterDashboard";
 import ManagerDashboard from "./pages/ManagerDashboard";
 
-// Auth guard
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 function RedirectByRole() {
@@ -63,7 +56,6 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          {/* Públicas */}
           <Route path="/" element={<Home />} />
           <Route path="/ecosistema" element={<Ecosistema />} />
           <Route path="/alianzas" element={<Alianzas />} />
@@ -71,7 +63,6 @@ function App() {
           <Route path="/interpretes" element={<InterpretesDisponibles />} />
           <Route path="/mapa" element={<MapaInterpretes />} />
 
-          {/* Auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/pending" element={<Pending />} />
@@ -79,7 +70,15 @@ function App() {
           <Route path="/login-gerente" element={<Navigate to="/g/login" replace />} />
           <Route path="/panel" element={<RedirectByRole />} />
 
-          {/* Servicio */}
+          <Route
+            path="/solicitud"
+            element={
+              <ProtectedRoute requireStatus="active">
+                <Solicitud />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/video/:roomId"
             element={
@@ -107,28 +106,10 @@ function App() {
             }
           />
 
-          {/* Usuario */}
-          <Route
-            path="/solicitud"
-            element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["user"]}
-                requireStatus="active"
-              >
-                <Solicitud />
-              </ProtectedRoute>
-            }
-          />
-
           <Route
             path="/usuario"
             element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["user"]}
-                requireStatus="active"
-              >
+              <ProtectedRoute requireStatus="active">
                 <UserDashboard />
               </ProtectedRoute>
             }
@@ -137,17 +118,12 @@ function App() {
           <Route
             path="/pagos"
             element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["user"]}
-                requireStatus="active"
-              >
+              <ProtectedRoute requireStatus="active">
                 <MisPagos />
               </ProtectedRoute>
             }
           />
 
-          {/* Intérprete */}
           <Route
             path="/interprete"
             element={
@@ -161,7 +137,6 @@ function App() {
             }
           />
 
-          {/* Compartidas */}
           <Route
             path="/cursos"
             element={
@@ -183,7 +158,6 @@ function App() {
             }
           />
 
-          {/* Gerente */}
           <Route
             path="/gerente"
             element={
@@ -202,7 +176,6 @@ function App() {
             }
           />
 
-          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

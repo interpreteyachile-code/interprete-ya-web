@@ -30,7 +30,11 @@ function statusLabel(status) {
 }
 
 function modeLabel(mode) {
-  return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
+  return mode === "video"
+    ? "🎥 Video"
+    : mode === "schedule"
+    ? "📅 Agenda"
+    : "⚡ Ahora";
 }
 
 function serviceTypeLabel(type) {
@@ -51,12 +55,24 @@ function zoneLabel(zone) {
 
 function flowMessage(service) {
   if (service.status === "created") return "🧾 Solicitud creada en el sistema.";
-  if (service.status === "paid" && !service.interpreterId) return "💳 Pago confirmado. Buscando intérprete disponible...";
-  if (service.status === "paid" && service.interpreterId) return `✅ Pago confirmado. Intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
-  if (service.status === "matched") return `🤝 Ya tienes intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
-  if (service.status === "started") return `🔳 El servicio está en curso con ${service.interpreterName || "tu intérprete"}.`;
-  if (service.status === "finished") return "🏁 El servicio finalizó correctamente. Ya puedes calificar.";
-  if (service.status === "rated") return "⭐ Ya evaluaste este servicio. Gracias por aportar a la comunidad.";
+  if (service.status === "paid" && !service.interpreterId) {
+    return "💳 Pago confirmado. Esperando que gerente asigne intérprete.";
+  }
+  if (service.status === "paid" && service.interpreterId) {
+    return `✅ Pago confirmado. Intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
+  }
+  if (service.status === "matched") {
+    return `🤝 Ya tienes intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
+  }
+  if (service.status === "started") {
+    return `🔳 El servicio está en curso con ${service.interpreterName || "tu intérprete"}.`;
+  }
+  if (service.status === "finished") {
+    return "🏁 El servicio finalizó correctamente. Ya puedes calificar.";
+  }
+  if (service.status === "rated") {
+    return "⭐ Ya evaluaste este servicio. Gracias por aportar a la comunidad.";
+  }
   if (service.status === "cancelled") return "⛔ Este servicio fue cancelado.";
   return "ℹ️ Estado actualizado.";
 }
@@ -143,7 +159,6 @@ export default function UserDashboard() {
   const counts = useMemo(() => {
     return {
       total: my.length,
-      created: my.filter((s) => s.status === "created").length,
       paid: my.filter((s) => s.status === "paid").length,
       matched: my.filter((s) => s.status === "matched").length,
       started: my.filter((s) => s.status === "started").length,
@@ -166,7 +181,7 @@ export default function UserDashboard() {
   }
 
   const totalBase = Math.max(1, counts.total);
-  const createdPercent = Math.round((counts.created / totalBase) * 100);
+  const paidPercent = Math.round((counts.paid / totalBase) * 100);
   const activePercent = Math.round(((counts.matched + counts.started) / totalBase) * 100);
   const completedPercent = Math.round(((counts.finished + counts.rated) / totalBase) * 100);
 
@@ -183,7 +198,7 @@ export default function UserDashboard() {
             </div>
 
             <div className="panel-mini min-w-[220px]">
-              <div className="panel-label">User session</div>
+              <div className="panel-label">Sesión usuario</div>
               <div className="text-sm font-semibold mt-2">{user.fullName}</div>
               <div className="text-xs text-white/55 mt-1">🪪 {user.rut}</div>
             </div>
@@ -193,7 +208,7 @@ export default function UserDashboard() {
         <div className="p-4 grid lg:grid-cols-[1.3fr_.7fr] gap-4">
           <div className="grid gap-4">
             <div className="aether-block">
-              <div className="aether-block-head">Datos activos</div>
+              <div className="aether-block-head">Señal activa</div>
               <div className="aether-block-body">
                 <div className="aether-wave" />
               </div>
@@ -201,19 +216,19 @@ export default function UserDashboard() {
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
               <MetricCard label="Solicitudes" value={counts.total} hint="Total registradas" />
-              <MetricCard label="Pagadas" value={counts.paid} hint="Pagos confirmados" />
+              <MetricCard label="Pagadas" value={counts.paid} hint="Esperando intérprete" />
               <MetricCard label="Activas" value={counts.matched + counts.started} hint="Asignadas / en curso" />
-              <MetricCard label="Finalizadas" value={counts.finished + counts.rated} hint="Finalizadas / evaluadas" />
+              <MetricCard label="Finalizadas" value={counts.finished + counts.rated} hint="Cerradas / evaluadas" />
             </div>
           </div>
 
           <div className="aether-block">
-            <div className="aether-block-head">Resumen del sistema</div>
+            <div className="aether-block-head">Resumen</div>
             <div className="aether-block-body">
               <div className="aether-statbars">
-                <AetherBar label="Creadas" value={createdPercent} />
-                <AetherBar label="Activas" value={activePercent} />
-                <AetherBar label="Listas" value={completedPercent} />
+                <AetherBar label="Pago" value={paidPercent} />
+                <AetherBar label="Activo" value={activePercent} />
+                <AetherBar label="Listo" value={completedPercent} />
               </div>
             </div>
           </div>
@@ -242,7 +257,7 @@ export default function UserDashboard() {
         <div className="aether-header">
           <div className="aether-title">📚 Mis solicitudes</div>
           <div className="aether-subtitle">
-            Seguimiento de solicitudes, pagos y servicios en vivo
+            Seguimiento de solicitudes, pagos, asignación y videollamada
           </div>
         </div>
 
@@ -288,6 +303,9 @@ export default function UserDashboard() {
                         <div>
                           🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
                         </div>
+
+                        {s.startCode && <div>🔳 Código inicio: <b>{s.startCode}</b></div>}
+                        {s.endCode && <div>🏁 Código fin: <b>{s.endCode}</b></div>}
                       </div>
                     </div>
 
@@ -306,9 +324,7 @@ export default function UserDashboard() {
 
                     <div className="grid gap-2">
                       {s.mode === "video" &&
-                        (s.status === "matched" ||
-                          s.status === "started" ||
-                          (s.status === "paid" && s.interpreterId)) && (
+                        (s.status === "matched" || s.status === "started") && (
                           <button
                             className="tron-btn tron-primary w-full py-3 font-semibold"
                             onClick={() => nav(`/video/${s.id}`)}
