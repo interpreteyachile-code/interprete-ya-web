@@ -49,7 +49,11 @@ function AetherBar({ label, value }) {
 function userRoleLabel(user) {
   if (user?.role === "manager") return "🧑‍💼 Gerente";
   if (user?.profileType === "interpreter") return "🧑‍💼 Intérprete";
-  return "🧏‍♀️ Cliente";
+  return "🧏 Cliente";
+}
+
+function makeVideoRoom(id) {
+  return `InterpreteYa-${String(id).replace(/[^a-zA-Z0-9]/g, "")}`;
 }
 
 function mapService(s) {
@@ -102,10 +106,16 @@ export default function VideoRoom() {
 
   useEffect(() => {
     loadService();
-  }, [roomId]);
 
-  async function loadService() {
-    setLoading(true);
+    const timer = setInterval(() => {
+      loadService(false);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [roomId, user?.id]);
+
+  async function loadService(showLoading = true) {
+    if (showLoading) setLoading(true);
 
     const { data, error } = await supabase
       .from("services")
@@ -117,14 +127,40 @@ export default function VideoRoom() {
       console.log("VideoRoom load error:", error);
       setError("❌ No se encontró el servicio en Supabase.");
       setService(null);
-      setLoading(false);
+      if (showLoading) setLoading(false);
       return;
     }
 
-    const mapped = mapService(data);
-    setService(mapped);
-    setSecondsLeft(Number(mapped.durationMin || 30) * 60);
-    setLoading(false);
+    let mapped = mapService(data);
+
+    const allowed =
+      user?.role === "manager" ||
+      mapped.clientId === user?.id ||
+      mapped.interpreterId === user?.id;
+
+    if (!allowed) {
+      setError("⛔ No tienes permiso para entrar a esta videollamada.");
+      setService(null);
+      if (showLoading) setLoading(false);
+      return;
+    }
+
+    if (!mapped.videoRoom) {
+      const roomName = makeVideoRoom(mapped.id);
+
+      const { data: updatedRoom, error: roomError } = await supabase
+        .from("services")
+        .update({ video_room: roomName })
+        .eq("id", mapped.id)
+        .select()
+        .single();
+
+      if (!roomError && updatedRoom) {
+        mapped = mapService(updatedRoom);
+      } else {
+        mapped.videoRoom = roomName;
+      }
+    }
 
     const shouldStart =
       mapped.status === "matched" ||
@@ -141,8 +177,16 @@ export default function VideoRoom() {
         .select()
         .single();
 
-      if (updated) setService(mapService(updated));
+      if (updated) mapped = mapService(updated);
     }
+
+    setService(mapped);
+    setSecondsLeft((prev) => {
+      if (prev > 0 && prev !== 30 * 60) return prev;
+      return Number(mapped.durationMin || 30) * 60;
+    });
+
+    if (showLoading) setLoading(false);
   }
 
   useEffect(() => {
@@ -156,7 +200,7 @@ export default function VideoRoom() {
     const finalRoomName =
       service.videoRoom ||
       service.video_room ||
-      "InterpreteYa-" + String(roomId).replace(/[^a-zA-Z0-9]/g, "");
+      makeVideoRoom(roomId);
 
     const options = {
       roomName: finalRoomName,
@@ -181,14 +225,19 @@ export default function VideoRoom() {
         setIsReady(true);
         setChatItems((prev) => [
           ...prev,
-          { id: Date.now(), author: "Sistema", text: "Videollamada conectada en vivo." },
+          {
+            id: Date.now(),
+            author: "Sistema",
+            text: "Videollamada conectada en vivo.",
+          },
         ]);
       });
 
       apiRef.current.addEventListener("readyToClose", () => {
         finishAndExit(false);
       });
-    } catch {
+    } catch (e) {
+      console.log(e);
       setError("❌ No se pudo abrir la videollamada.");
       setIsReady(false);
     }
@@ -199,7 +248,7 @@ export default function VideoRoom() {
         apiRef.current = null;
       }
     };
-  }, [service, roomId]);
+  }, [service?.id, service?.videoRoom, roomId]);
 
   async function finishAndExit(fromTimer = false) {
     if (!service || finishedRef.current) return;
@@ -214,6 +263,11 @@ export default function VideoRoom() {
       .eq("id", service.id);
 
     if (fromTimer) alert("⏱ Tiempo finalizado");
+
+    if (apiRef.current) {
+      apiRef.current.dispose();
+      apiRef.current = null;
+    }
 
     if (user?.profileType === "user") {
       nav(`/calificar/${roomId}`, { replace: true });
@@ -243,7 +297,7 @@ export default function VideoRoom() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [service]);
+  }, [service?.id]);
 
   const handleSendChat = () => {
     const value = chatText.trim();
@@ -283,9 +337,9 @@ export default function VideoRoom() {
   if (!service) {
     return (
       <div className="tron-card p-6 max-w-2xl mx-auto">
-        ❌ No se encontró el servicio.
+        {error || "❌ No se encontró el servicio."}
         <div className="mt-4">
-          <button className="tron-btn tron-primary" onClick={() => nav("/historial")}>
+          <button className="tron-btn tron-primary" onClick={() => nav(getBackRoute(user))}>
             ⬅️ Volver
           </button>
         </div>
@@ -306,12 +360,20 @@ export default function VideoRoom() {
   const audioPercent = audioMuted ? 12 : 88;
   const videoPercent = videoMuted ? 8 : 90;
 
+  const connectionText = isReady ? "🟢 Conectado" : "🟡 Esperando conexión";
+
   const isManager = user?.role === "manager";
   const isInterpreter = user?.profileType === "interpreter";
   const isClient = user?.profileType === "user";
 
   return (
     <div className="max-w-7xl mx-auto grid gap-4">
+      {service.priority === "high" && (
+        <div className="panel-mini border-danger text-center text-lg font-bold">
+          🚨 SERVICIO SOS PRIORIDAD ALTA 🚨
+        </div>
+      )}
+
       <div className="aether-shell">
         <div className="aether-header">
           <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -355,6 +417,10 @@ export default function VideoRoom() {
             <div className="aether-block">
               <div className="aether-block-head">Estado del sistema</div>
               <div className="aether-block-body">
+                <div className="panel-mini mb-3 text-sm text-white/80">
+                  {connectionText}
+                </div>
+
                 <div className="aether-statbars">
                   <AetherBar label="Time" value={timePercent} />
                   <AetherBar label="Audio" value={audioPercent} />
@@ -373,7 +439,10 @@ export default function VideoRoom() {
                 <div>🧑‍💼 Intérprete: <b>{service.interpreterName || "—"}</b></div>
                 <div>🎥 Sala: <b>{service.videoRoom || "Automática"}</b></div>
                 <div>⏱ Duración base: <b>{durationMinutes} min</b></div>
-                <div>📡 Estado: <b>{service.status === "finished" ? "Finalizado" : isReady ? "En vivo" : "Conectando"}</b></div>
+                <div>
+                  📡 Estado:{" "}
+                  <b>{service.status === "finished" ? "Finalizado" : isReady ? "En vivo" : "Conectando"}</b>
+                </div>
               </div>
             </div>
 
@@ -436,6 +505,9 @@ export default function VideoRoom() {
                 placeholder="Escribe una nota o mensaje rápido..."
                 value={chatText}
                 onChange={(e) => setChatText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSendChat();
+                }}
               />
               <button className="tron-btn tron-primary font-semibold" onClick={handleSendChat}>
                 ➤ Enviar

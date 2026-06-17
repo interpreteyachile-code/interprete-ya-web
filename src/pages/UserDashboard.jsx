@@ -46,6 +46,8 @@ function serviceTypeLabel(type) {
     ? "💼 Entrevista"
     : type === "evento"
     ? "🎤 Evento"
+    : type === "emergencia"
+    ? "🚨 Emergencia"
     : "🧩 Servicio";
 }
 
@@ -55,25 +57,35 @@ function zoneLabel(zone) {
 
 function flowMessage(service) {
   if (service.status === "created") return "🧾 Solicitud creada en el sistema.";
+
   if (service.status === "paid" && !service.interpreterId) {
-    return "💳 Pago confirmado. Esperando que gerente asigne intérprete.";
+    return service.priority === "high"
+      ? "🚨 SOS enviado. Esperando intérprete o asignación del gerente."
+      : "💳 Pago confirmado. Esperando que gerente asigne intérprete.";
   }
-  if (service.status === "paid" && service.interpreterId) {
-    return `✅ Pago confirmado. Intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
-  }
+
   if (service.status === "matched") {
-    return `🤝 Ya tienes intérprete asignado: ${service.interpreterName || "Intérprete"}.`;
+    return `🤝 Ya tienes intérprete asignado: ${
+      service.interpreterName || "Intérprete"
+    }. Puedes entrar a la videollamada.`;
   }
+
   if (service.status === "started") {
-    return `🔳 El servicio está en curso con ${service.interpreterName || "tu intérprete"}.`;
+    return `🔳 El servicio está en curso con ${
+      service.interpreterName || "tu intérprete"
+    }.`;
   }
+
   if (service.status === "finished") {
     return "🏁 El servicio finalizó correctamente. Ya puedes calificar.";
   }
+
   if (service.status === "rated") {
     return "⭐ Ya evaluaste este servicio. Gracias por aportar a la comunidad.";
   }
+
   if (service.status === "cancelled") return "⛔ Este servicio fue cancelado.";
+
   return "ℹ️ Estado actualizado.";
 }
 
@@ -121,6 +133,8 @@ function mapService(s) {
     finishedAt: s.finished_at,
     ratedAt: s.rated_at,
     createdAt: s.created_at,
+    videoRoom: s.video_room,
+    priority: s.priority || "normal",
   };
 }
 
@@ -133,12 +147,18 @@ export default function UserDashboard() {
 
   useEffect(() => {
     loadMyServices();
+
+    const timer = setInterval(() => {
+      loadMyServices(false);
+    }, 8000);
+
+    return () => clearInterval(timer);
   }, [user?.id, user?.rut]);
 
-  async function loadMyServices() {
+  async function loadMyServices(showLoading = true) {
     if (!user?.id && !user?.rut) return;
 
-    setLoading(true);
+    if (showLoading) setLoading(true);
 
     const { data, error } = await supabase
       .from("services")
@@ -153,7 +173,7 @@ export default function UserDashboard() {
       setMy((data || []).map(mapService));
     }
 
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }
 
   const counts = useMemo(() => {
@@ -164,6 +184,7 @@ export default function UserDashboard() {
       started: my.filter((s) => s.status === "started").length,
       finished: my.filter((s) => s.status === "finished").length,
       rated: my.filter((s) => s.status === "rated").length,
+      sos: my.filter((s) => s.priority === "high").length,
     };
   }, [my]);
 
@@ -182,8 +203,12 @@ export default function UserDashboard() {
 
   const totalBase = Math.max(1, counts.total);
   const paidPercent = Math.round((counts.paid / totalBase) * 100);
-  const activePercent = Math.round(((counts.matched + counts.started) / totalBase) * 100);
-  const completedPercent = Math.round(((counts.finished + counts.rated) / totalBase) * 100);
+  const activePercent = Math.round(
+    ((counts.matched + counts.started) / totalBase) * 100
+  );
+  const completedPercent = Math.round(
+    ((counts.finished + counts.rated) / totalBase) * 100
+  );
 
   return (
     <div className="grid gap-4">
@@ -193,7 +218,7 @@ export default function UserDashboard() {
             <div>
               <div className="aether-title">🤟 Panel Usuario</div>
               <div className="aether-subtitle">
-                Solicitudes reales conectadas a Supabase
+                Solicitudes reales · actualización automática cada 8 segundos
               </div>
             </div>
 
@@ -214,11 +239,20 @@ export default function UserDashboard() {
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
               <MetricCard label="Solicitudes" value={counts.total} hint="Total registradas" />
               <MetricCard label="Pagadas" value={counts.paid} hint="Esperando intérprete" />
-              <MetricCard label="Activas" value={counts.matched + counts.started} hint="Asignadas / en curso" />
-              <MetricCard label="Finalizadas" value={counts.finished + counts.rated} hint="Cerradas / evaluadas" />
+              <MetricCard
+                label="Activas"
+                value={counts.matched + counts.started}
+                hint="Asignadas / en curso"
+              />
+              <MetricCard
+                label="Finalizadas"
+                value={counts.finished + counts.rated}
+                hint="Cerradas / evaluadas"
+              />
+              <MetricCard label="SOS" value={counts.sos} hint="Emergencias" />
             </div>
           </div>
 
@@ -235,20 +269,32 @@ export default function UserDashboard() {
         </div>
 
         <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <button className="tron-btn tron-primary py-3 font-semibold" onClick={() => nav("/solicitud")}>
+          <button
+            className="tron-btn tron-primary py-3 font-semibold"
+            onClick={() => nav("/solicitud")}
+          >
             ➕ Nueva Solicitud
           </button>
 
-          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/pagos")}>
+          <button
+            className="tron-btn tron-danger py-3 font-semibold"
+            onClick={() => nav("/solicitud")}
+          >
+            🚨 Crear SOS
+          </button>
+
+          <button
+            className="tron-btn py-3 font-semibold"
+            onClick={() => nav("/pagos")}
+          >
             💳 Mis pagos
           </button>
 
-          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/historial")}>
+          <button
+            className="tron-btn py-3 font-semibold"
+            onClick={() => nav("/historial")}
+          >
             📜 Historial
-          </button>
-
-          <button className="tron-btn py-3 font-semibold" onClick={() => nav("/cursos")}>
-            🎓 Cursos LSCh
           </button>
         </div>
       </div>
@@ -257,7 +303,7 @@ export default function UserDashboard() {
         <div className="aether-header">
           <div className="aether-title">📚 Mis solicitudes</div>
           <div className="aether-subtitle">
-            Seguimiento de solicitudes, pagos, asignación y videollamada
+            Seguimiento de pagos, asignación y videollamada
           </div>
         </div>
 
@@ -270,61 +316,70 @@ export default function UserDashboard() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-3">
-              {my.map((s) => (
-                <div key={s.id} className="aether-shell">
-                  <div className="aether-header">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="aether-title">
-                          {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
-                        </div>
-                        <div className="aether-subtitle">
-                          {zoneLabel(s.zone)} · {statusLabel(s.status)}
-                        </div>
-                      </div>
+              {my.map((s) => {
+                const canEnterVideo =
+                  (s.mode === "video" || s.videoRoom || s.priority === "high") &&
+                  (s.status === "matched" || s.status === "started");
 
-                      <Chip>{statusLabel(s.status)}</Chip>
-                    </div>
-                  </div>
-
-                  <div className="p-4 grid gap-3">
-                    <div className="aether-block">
-                      <div className="aether-block-head">Datos del servicio</div>
-                      <div className="aether-block-body grid gap-1 text-sm text-white/75">
-                        <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
-                        <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
-
-                        {s.scheduledAt && (
-                          <div>
-                            📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
+                return (
+                  <div key={s.id} className="aether-shell">
+                    <div className="aether-header">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="aether-title">
+                            {s.priority === "high" ? "🚨 SOS · " : ""}
+                            {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
                           </div>
-                        )}
-
-                        <div>
-                          🧑‍💼 Intérprete: <b>{s.interpreterName || "Aún no asignado"}</b>
+                          <div className="aether-subtitle">
+                            {zoneLabel(s.zone)} · {statusLabel(s.status)}
+                          </div>
                         </div>
 
-                        {s.startCode && <div>🔳 Código inicio: <b>{s.startCode}</b></div>}
-                        {s.endCode && <div>🏁 Código fin: <b>{s.endCode}</b></div>}
+                        <Chip>
+                          {s.priority === "high" ? "🚨 SOS" : statusLabel(s.status)}
+                        </Chip>
                       </div>
                     </div>
 
-                    <div className="aether-block">
-                      <div className="aether-block-head">Estado en vivo</div>
-                      <div className="aether-block-body text-sm text-white/80">
-                        {flowMessage(s)}
-                      </div>
-                    </div>
+                    <div className="p-4 grid gap-3">
+                      <div className="aether-block">
+                        <div className="aether-block-head">Datos del servicio</div>
+                        <div className="aether-block-body grid gap-1 text-sm text-white/75">
+                          <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
+                          <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
 
-                    {s.note && (
-                      <div className="panel-mini text-sm text-white/65">
-                        📝 {s.note}
-                      </div>
-                    )}
+                          {s.scheduledAt && (
+                            <div>
+                              📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b>
+                            </div>
+                          )}
 
-                    <div className="grid gap-2">
-                      {s.mode === "video" &&
-                        (s.status === "matched" || s.status === "started") && (
+                          <div>
+                            🧑‍💼 Intérprete:{" "}
+                            <b>{s.interpreterName || "Aún no asignado"}</b>
+                          </div>
+
+                          {s.videoRoom && <div>🎥 Sala: <b>{s.videoRoom}</b></div>}
+                          {s.startCode && <div>🔳 Código inicio: <b>{s.startCode}</b></div>}
+                          {s.endCode && <div>🏁 Código fin: <b>{s.endCode}</b></div>}
+                        </div>
+                      </div>
+
+                      <div className="aether-block">
+                        <div className="aether-block-head">Estado en vivo</div>
+                        <div className="aether-block-body text-sm text-white/80">
+                          {flowMessage(s)}
+                        </div>
+                      </div>
+
+                      {s.note && (
+                        <div className="panel-mini text-sm text-white/65">
+                          📝 {s.note}
+                        </div>
+                      )}
+
+                      <div className="grid gap-2">
+                        {canEnterVideo && (
                           <button
                             className="tron-btn tron-primary w-full py-3 font-semibold"
                             onClick={() => nav(`/video/${s.id}`)}
@@ -333,25 +388,26 @@ export default function UserDashboard() {
                           </button>
                         )}
 
-                      {s.status === "finished" && (
-                        <button
-                          className="tron-btn w-full py-3 font-semibold"
-                          onClick={() => nav(`/calificar/${s.id}`)}
-                        >
-                          ⭐ Calificar servicio
-                        </button>
-                      )}
+                        {s.status === "finished" && (
+                          <button
+                            className="tron-btn w-full py-3 font-semibold"
+                            onClick={() => nav(`/calificar/${s.id}`)}
+                          >
+                            ⭐ Calificar servicio
+                          </button>
+                        )}
 
-                      <button
-                        className="tron-btn tron-muted w-full py-3 font-semibold"
-                        onClick={loadMyServices}
-                      >
-                        🔄 Actualizar
-                      </button>
+                        <button
+                          className="tron-btn tron-muted w-full py-3 font-semibold"
+                          onClick={() => loadMyServices()}
+                        >
+                          🔄 Actualizar
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

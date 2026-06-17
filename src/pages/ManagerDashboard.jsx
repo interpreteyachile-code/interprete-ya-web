@@ -12,26 +12,41 @@ function moneyCLP(n) {
 }
 
 function userStatus(status) {
-  return status === "active" ? "✅ Activo"
-    : status === "pending" ? "⏳ Pendiente"
-    : status === "rejected" ? "⛔ Rechazado"
-    : status === "blocked" ? "🚫 Lista negra"
-    : status === "deleted" ? "🗑️ Eliminado"
+  return status === "active"
+    ? "✅ Activo"
+    : status === "pending"
+    ? "⏳ Pendiente"
+    : status === "rejected"
+    ? "⛔ Rechazado"
+    : status === "blocked"
+    ? "🚫 Lista negra"
+    : status === "deleted"
+    ? "🗑️ Eliminado"
     : "—";
 }
 
 function serviceStatus(status) {
-  return status === "paid" ? "💳 Pagado"
-    : status === "matched" ? "🤝 Asignado"
-    : status === "started" ? "🔳 En curso"
-    : status === "finished" ? "🏁 Finalizado"
-    : status === "rated" ? "⭐ Evaluado"
-    : status === "cancelled" ? "⛔ Cancelado"
+  return status === "paid"
+    ? "💳 Pagado"
+    : status === "matched"
+    ? "🤝 Asignado"
+    : status === "started"
+    ? "🔳 En curso"
+    : status === "finished"
+    ? "🏁 Finalizado"
+    : status === "rated"
+    ? "⭐ Evaluado"
+    : status === "cancelled"
+    ? "⛔ Cancelado"
     : "🧾 Creado";
 }
 
 function modeLabel(mode) {
   return mode === "video" ? "🎥 Video" : mode === "schedule" ? "📅 Agenda" : "⚡ Ahora";
+}
+
+function makeVideoRoom(id) {
+  return `InterpreteYa-${String(id).replace(/[^a-zA-Z0-9]/g, "")}`;
 }
 
 function mapProfile(u) {
@@ -77,29 +92,59 @@ export default function ManagerDashboard() {
 
   useEffect(() => {
     loadAll();
+
+    const timer = setInterval(() => {
+      loadAll(false);
+    }, 8000);
+
+    return () => clearInterval(timer);
   }, []);
 
-  async function loadAll() {
-    setLoading(true);
+  async function loadAll(showLoading = true) {
+    if (showLoading) setLoading(true);
     await Promise.all([loadProfiles(), loadServices(), loadPayments()]);
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }
 
   async function loadProfiles() {
-    const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    if (error) return console.log(error);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("profiles error:", error);
+      return;
+    }
+
     setProfiles((data || []).map(mapProfile));
   }
 
   async function loadServices() {
-    const { data, error } = await supabase.from("services").select("*").order("created_at", { ascending: false });
-    if (error) return console.log(error);
+    const { data, error } = await supabase
+      .from("services")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("services error:", error);
+      return;
+    }
+
     setServices((data || []).map(mapService));
   }
 
   async function loadPayments() {
-    const { data, error } = await supabase.from("payments").select("*").order("created_at", { ascending: false });
-    if (error) return console.log(error);
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("payments error:", error);
+      return;
+    }
+
     setPayments(data || []);
   }
 
@@ -120,11 +165,17 @@ export default function ManagerDashboard() {
   });
 
   const visibleUsers = clients
-    .filter((u) => filterStatus === "all" ? u.status !== "deleted" : u.status === filterStatus)
-    .filter((u) => filterType === "all" ? true : u.profileType === filterType)
+    .filter((u) => (filterStatus === "all" ? u.status !== "deleted" : u.status === filterStatus))
+    .filter((u) => (filterType === "all" ? true : u.profileType === filterType))
     .filter((u) => {
-      const s = q.toLowerCase();
-      return !s || u.fullName.toLowerCase().includes(s) || (u.email || "").toLowerCase().includes(s) || (u.rut || "").toLowerCase().includes(s);
+      const s = q.toLowerCase().trim();
+      return (
+        !s ||
+        (u.fullName || "").toLowerCase().includes(s) ||
+        (u.email || "").toLowerCase().includes(s) ||
+        (u.rut || "").toLowerCase().includes(s) ||
+        (u.adminNote || "").toLowerCase().includes(s)
+      );
     });
 
   const stats = {
@@ -135,17 +186,22 @@ export default function ManagerDashboard() {
     deleted: clients.filter((u) => u.status === "deleted").length,
     sos: services.filter((s) => s.priority === "high" && s.status !== "finished").length,
     waiting: services.filter((s) => s.status === "paid" && !s.interpreter_id).length,
-    money: payments.filter((p) => p.status === "paid").reduce((a, p) => a + Number(p.amount_clp || 0), 0),
+    money: payments
+      .filter((p) => p.status === "paid")
+      .reduce((a, p) => a + Number(p.amount_clp || 0), 0),
   };
 
   async function updateUser(id, patch) {
     const { error } = await supabase.from("profiles").update(patch).eq("id", id);
+
     if (error) {
       alert("❌ Error actualizando usuario");
       console.log(error);
-      return;
+      return false;
     }
+
     await loadProfiles();
+    return true;
   }
 
   async function setStatus(u, status) {
@@ -165,6 +221,11 @@ export default function ManagerDashboard() {
     const intp = activeInterpreters.find((i) => i.id === selectedInterpreterId);
     if (!intp) return alert("❌ Intérprete no encontrado");
 
+    const room =
+      selectedService.videoRoom ||
+      selectedService.video_room ||
+      makeVideoRoom(selectedService.id);
+
     const { error } = await supabase
       .from("services")
       .update({
@@ -173,6 +234,7 @@ export default function ManagerDashboard() {
         status: "matched",
         accepted_at: new Date().toISOString(),
         assigned_by: "manager",
+        video_room: room,
       })
       .eq("id", selectedService.id);
 
@@ -183,8 +245,9 @@ export default function ManagerDashboard() {
     }
 
     setSelectedService(null);
+    setSelectedInterpreterId("");
     await loadServices();
-    alert("✅ Intérprete asignado");
+    alert("✅ Intérprete asignado y sala de video creada");
   }
 
   function UserCard({ u }) {
@@ -210,7 +273,7 @@ export default function ManagerDashboard() {
           <button className="tron-btn tron-danger" onClick={() => setStatus(u, "rejected")}>⛔ Rechazar</button>
           <button className="tron-btn tron-muted" onClick={() => setStatus(u, "blocked")}>🚫 Bloquear</button>
           <button className="tron-btn" onClick={() => setStatus(u, "pending")}>↩️ Pendiente</button>
-          <button className="tron-btn tron-muted" onClick={() => setEditUser(u)}>✏️ Editar</button>
+          <button className="tron-btn tron-muted" onClick={() => setEditUser({ ...u })}>✏️ Editar</button>
           <button className="tron-btn tron-danger" onClick={() => setStatus(u, "deleted")}>🗑️ Eliminar</button>
         </div>
       </div>
@@ -255,9 +318,13 @@ export default function ManagerDashboard() {
         <div className="flex justify-between flex-wrap gap-4">
           <div>
             <div className="text-2xl font-semibold h-title">🧑‍💼 Panel Gerente PRO</div>
-            <div className="text-white/70 mt-1">Control de cuentas, SOS, servicios y pagos.</div>
+            <div className="text-white/70 mt-1">
+              Control de cuentas, SOS, servicios, pagos y videollamadas.
+            </div>
           </div>
-          <button className="tron-btn tron-primary px-4" onClick={loadAll}>🔄 Actualizar</button>
+          <button className="tron-btn tron-primary px-4" onClick={() => loadAll()}>
+            🔄 Actualizar
+          </button>
         </div>
 
         <div className="grid sm:grid-cols-2 xl:grid-cols-8 gap-3 mt-4">
@@ -281,7 +348,7 @@ export default function ManagerDashboard() {
       {tab === "accounts" && (
         <div className="grid gap-3">
           <div className="tron-card p-4 grid md:grid-cols-3 gap-2">
-            <input className="tron-input" placeholder="Buscar..." value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="tron-input" placeholder="Buscar nombre, RUT, correo..." value={q} onChange={(e) => setQ(e.target.value)} />
             <select className="tron-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="pending">⏳ Pendientes</option>
               <option value="active">✅ Activos</option>
@@ -297,7 +364,9 @@ export default function ManagerDashboard() {
             </select>
           </div>
 
-          {loading ? <div className="tron-card p-6">Cargando...</div> : (
+          {loading ? (
+            <div className="tron-card p-6">Cargando...</div>
+          ) : (
             <div className="grid md:grid-cols-2 gap-3">
               {visibleUsers.map((u) => <UserCard key={u.id} u={u} />)}
             </div>
@@ -323,7 +392,7 @@ export default function ManagerDashboard() {
             <div className="panel-mini mt-4">
               Cliente: <b>{selectedService.clientName || "—"}</b><br />
               Monto: <b>{moneyCLP(selectedService.amountCLP)}</b><br />
-              Sala: <b>{selectedService.videoRoom || "—"}</b><br />
+              Sala: <b>{selectedService.videoRoom || "Se creará al asignar"}</b><br />
               Intérprete: <b>{selectedService.interpreterName || "Sin asignar"}</b>
             </div>
 
@@ -337,10 +406,10 @@ export default function ManagerDashboard() {
               <button className="tron-btn tron-primary px-4" onClick={assignInterpreter}>✅ Asignar</button>
             </div>
 
-            {selectedService.videoRoom && (
+            {(selectedService.videoRoom || selectedService.video_room) && (
               <button
                 className="tron-btn tron-primary w-full mt-3 py-3"
-                onClick={() => window.open(`https://meet.jit.si/${selectedService.videoRoom}`, "_blank")}
+                onClick={() => window.open(`https://meet.jit.si/${selectedService.videoRoom || selectedService.video_room}`, "_blank")}
               >
                 🎥 Abrir videollamada
               </button>
@@ -358,18 +427,30 @@ export default function ManagerDashboard() {
           <div className="tron-card p-6 max-w-xl w-full">
             <div className="text-2xl h-title">✏️ Editar usuario</div>
             <div className="mt-4 grid gap-2">
-              <input className="tron-input" defaultValue={editUser.fullName} onBlur={(e) => (editUser.fullName = e.target.value)} />
-              <input className="tron-input" defaultValue={editUser.email} onBlur={(e) => (editUser.email = e.target.value)} />
-              <textarea className="tron-input" defaultValue={editUser.adminNote} onBlur={(e) => (editUser.adminNote = e.target.value)} />
+              <input
+                className="tron-input"
+                value={editUser.fullName || ""}
+                onChange={(e) => setEditUser({ ...editUser, fullName: e.target.value })}
+              />
+              <input
+                className="tron-input"
+                value={editUser.email || ""}
+                onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+              />
+              <textarea
+                className="tron-input"
+                value={editUser.adminNote || ""}
+                onChange={(e) => setEditUser({ ...editUser, adminNote: e.target.value })}
+              />
               <button
                 className="tron-btn tron-primary"
                 onClick={async () => {
-                  await updateUser(editUser.id, {
+                  const ok = await updateUser(editUser.id, {
                     full_name: editUser.fullName,
                     email: editUser.email,
                     admin_note: editUser.adminNote,
                   });
-                  setEditUser(null);
+                  if (ok) setEditUser(null);
                 }}
               >
                 ✅ Guardar

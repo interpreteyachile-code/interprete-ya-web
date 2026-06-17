@@ -49,6 +49,10 @@ function zoneLabel(zone) {
   return zone === "norte" ? "🌵 Norte" : zone === "sur" ? "🌲 Sur" : "🏙️ Centro";
 }
 
+function makeVideoRoom(id) {
+  return `InterpreteYa-${String(id).replace(/[^a-zA-Z0-9]/g, "")}`;
+}
+
 function mapService(s) {
   return {
     ...s,
@@ -79,10 +83,16 @@ export default function InterpreterDashboard() {
 
   useEffect(() => {
     loadServices();
+
+    const timer = setInterval(() => {
+      loadServices(false);
+    }, 8000);
+
+    return () => clearInterval(timer);
   }, [user?.id]);
 
-  async function loadServices() {
-    setLoading(true);
+  async function loadServices(showLoading = true) {
+    if (showLoading) setLoading(true);
 
     const { data, error } = await supabase
       .from("services")
@@ -96,7 +106,7 @@ export default function InterpreterDashboard() {
       setServices((data || []).map(mapService));
     }
 
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }
 
   const available = useMemo(() => {
@@ -138,6 +148,11 @@ export default function InterpreterDashboard() {
       return;
     }
 
+    const room =
+      service.videoRoom ||
+      service.video_room ||
+      makeVideoRoom(service.id);
+
     const { error } = await supabase
       .from("services")
       .update({
@@ -146,6 +161,7 @@ export default function InterpreterDashboard() {
         status: "matched",
         accepted_at: new Date().toISOString(),
         assigned_by: "interpreter",
+        video_room: room,
       })
       .eq("id", serviceId)
       .is("interpreter_id", null);
@@ -157,7 +173,7 @@ export default function InterpreterDashboard() {
     }
 
     await loadServices();
-    alert("✅ Solicitud aceptada correctamente.");
+    alert("✅ Solicitud aceptada y sala de video creada.");
   };
 
   const start = async (serviceId) => {
@@ -196,87 +212,97 @@ export default function InterpreterDashboard() {
     await loadServices();
   };
 
-  const Card = ({ s, showTake = false }) => (
-    <div className="aether-shell">
-      <div className="aether-header">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="aether-title">
-              {s.priority === "high" ? "🚨 SOS · " : ""}
-              {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
+  const Card = ({ s, showTake = false }) => {
+    const canEnterVideo =
+      (s.mode === "video" || s.videoRoom || s.priority === "high") &&
+      (s.status === "matched" || s.status === "started") &&
+      s.interpreterId === user.id;
+
+    return (
+      <div className="aether-shell">
+        <div className="aether-header">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="aether-title">
+                {s.priority === "high" ? "🚨 SOS · " : ""}
+                {serviceTypeLabel(s.serviceType)} · {modeLabel(s.mode)}
+              </div>
+              <div className="aether-subtitle">
+                {zoneLabel(s.zone)} · {statusLabel(s.status)}
+              </div>
             </div>
-            <div className="aether-subtitle">
-              {zoneLabel(s.zone)} · {statusLabel(s.status)}
-            </div>
-          </div>
 
-          <Chip>{s.priority === "high" ? "🚨 URGENTE" : statusLabel(s.status)}</Chip>
-        </div>
-      </div>
-
-      <div className="p-4 grid gap-3">
-        <div className="aether-block">
-          <div className="aether-block-head">Datos del servicio</div>
-          <div className="aether-block-body grid gap-1 text-sm text-white/75">
-            <div>👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b></div>
-            <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
-            <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
-            <div>📍 Zona: <b>{zoneLabel(s.zone)}</b></div>
-
-            {s.scheduledAt && (
-              <div>📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b></div>
-            )}
-
-            {s.videoRoom && <div>🎥 Sala: <b>{s.videoRoom}</b></div>}
-
-            {s.note && <div className="text-xs text-white/58 mt-2">📝 {s.note}</div>}
+            <Chip>{s.priority === "high" ? "🚨 URGENTE" : statusLabel(s.status)}</Chip>
           </div>
         </div>
 
-        {showTake && (
-          <button
-            className={s.priority === "high" ? "tron-btn tron-danger w-full py-3 font-semibold" : "tron-btn tron-primary w-full py-3 font-semibold"}
-            onClick={() => take(s.id)}
-          >
-            {s.priority === "high" ? "🚨 Aceptar SOS urgente" : "✅ Aceptar solicitud"}
-          </button>
-        )}
+        <div className="p-4 grid gap-3">
+          <div className="aether-block">
+            <div className="aether-block-head">Datos del servicio</div>
+            <div className="aether-block-body grid gap-1 text-sm text-white/75">
+              <div>👤 Cliente: <b>{s.clientName || s.clientRut || "—"}</b></div>
+              <div>💳 Precio: <b>{moneyCLP(s.amountCLP)}</b></div>
+              <div>⏱️ Duración: <b>{s.durationMin || 30} min</b></div>
+              <div>📍 Zona: <b>{zoneLabel(s.zone)}</b></div>
 
-        {(s.status === "matched" || s.status === "started") && s.interpreterId === user.id && (
-          <div className="grid gap-2">
-            {(s.mode === "video" || s.videoRoom) && (
-              <button
-                className="tron-btn tron-primary w-full py-3 font-semibold"
-                onClick={() => nav(`/video/${s.id}`)}
-              >
-                🎥 Entrar a videollamada
-              </button>
-            )}
+              {s.scheduledAt && (
+                <div>📅 Agenda: <b>{String(s.scheduledAt).replace("T", " ")}</b></div>
+              )}
 
-            <div className="grid sm:grid-cols-2 gap-2">
-              <button
-                className="tron-btn tron-muted py-3 font-semibold"
-                onClick={() => start(s.id)}
-                disabled={s.status === "started"}
-              >
-                {s.status === "started" ? "✅ En curso" : "⏳ Iniciar"}
-              </button>
+              {s.videoRoom && <div>🎥 Sala: <b>{s.videoRoom}</b></div>}
 
-              <button className="tron-btn py-3 font-semibold" onClick={() => finish(s.id)}>
-                🏁 Finalizar
-              </button>
+              {s.note && <div className="text-xs text-white/58 mt-2">📝 {s.note}</div>}
             </div>
           </div>
-        )}
 
-        {s.status === "finished" && (
-          <div className="panel-mini text-sm text-white/75">
-            ✅ Servicio finalizado. Esperando calificación del usuario.
-          </div>
-        )}
+          {showTake && (
+            <button
+              className={
+                s.priority === "high"
+                  ? "tron-btn tron-danger w-full py-3 font-semibold"
+                  : "tron-btn tron-primary w-full py-3 font-semibold"
+              }
+              onClick={() => take(s.id)}
+            >
+              {s.priority === "high" ? "🚨 Aceptar SOS urgente" : "✅ Aceptar solicitud"}
+            </button>
+          )}
+
+          {canEnterVideo && (
+            <button
+              className="tron-btn tron-primary w-full py-3 font-semibold"
+              onClick={() => nav(`/video/${s.id}`)}
+            >
+              🎥 Entrar a videollamada
+            </button>
+          )}
+
+          {(s.status === "matched" || s.status === "started") &&
+            s.interpreterId === user.id && (
+              <div className="grid sm:grid-cols-2 gap-2">
+                <button
+                  className="tron-btn tron-muted py-3 font-semibold"
+                  onClick={() => start(s.id)}
+                  disabled={s.status === "started"}
+                >
+                  {s.status === "started" ? "✅ En curso" : "⏳ Iniciar"}
+                </button>
+
+                <button className="tron-btn py-3 font-semibold" onClick={() => finish(s.id)}>
+                  🏁 Finalizar
+                </button>
+              </div>
+            )}
+
+          {s.status === "finished" && (
+            <div className="panel-mini text-sm text-white/75">
+              ✅ Servicio finalizado. Esperando calificación del usuario.
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="grid gap-4">
@@ -286,7 +312,7 @@ export default function InterpreterDashboard() {
             <div>
               <div className="aether-title">🤟 Panel Intérprete Pro</div>
               <div className="aether-subtitle">
-                Solicitudes normales + 🚨 SOS ordenadas automáticamente
+                Solicitudes normales + 🚨 SOS · actualización automática cada 8 segundos
               </div>
             </div>
 
@@ -323,7 +349,7 @@ export default function InterpreterDashboard() {
         </div>
 
         <div className="p-4 pt-0 grid sm:grid-cols-3 gap-3">
-          <button className="tron-btn tron-primary py-3 font-semibold" onClick={loadServices}>
+          <button className="tron-btn tron-primary py-3 font-semibold" onClick={() => loadServices()}>
             🔄 Actualizar
           </button>
 
