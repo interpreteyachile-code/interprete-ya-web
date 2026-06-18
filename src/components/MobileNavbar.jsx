@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useHideOnScroll } from "../hooks/useHideOnScroll";
@@ -12,13 +12,17 @@ function getCrumb(pathname) {
     "/register": "Registro",
     "/pending": "Pendiente",
     "/gerente": "Gerente",
-    "/usuario": "Panel",
-    "/interprete": "Panel",
+    "/usuario": "Usuario",
+    "/interprete": "Intérprete",
     "/solicitud": "Solicitud",
     "/cursos": "Cursos",
     "/denuncias": "Reportes",
+    "/historial": "Historial",
+    "/mapa": "Mapa",
+    "/interpretes": "Intérpretes",
   };
-  return map[pathname] || "Navegación";
+
+  return map[pathname] || "InterpreteYa";
 }
 
 export default function MobileNavbar({ filters, setFilters }) {
@@ -26,145 +30,154 @@ export default function MobileNavbar({ filters, setFilters }) {
   const loc = useLocation();
   const { user, logout } = useAuth();
 
+  const [open, setOpen] = useState(false);
   const hidden = useHideOnScroll({ topThreshold: 8, delta: 6 });
+
   const crumb = useMemo(() => getCrumb(loc.pathname), [loc.pathname]);
 
-  const tabs = useMemo(() => {
-    const publicTabs = [
-      { path: "/", icon: "🏠", label: "Inicio" },
-      { path: "/ecosistema", icon: "🧩", label: "Ecosistema" },
-      { path: "/alianzas", icon: "🤝", label: "Alianzas" },
-    ];
-
-    const privateTabs = user
-      ? [
-          { path: "/solicitud", icon: "📅", label: "Agendar" },
-          { path: "/cursos", icon: "🎓", label: "Cursos" },
-          { path: "/denuncias", icon: "⚖️", label: "Reportes" },
-        ]
-      : [];
-
-    return [...publicTabs, ...privateTabs];
+  const panelPath = useMemo(() => {
+    if (!user) return "/login";
+    if (user.role === "manager") return "/gerente";
+    if (user.profileType === "interpreter") return "/interprete";
+    return "/usuario";
   }, [user]);
 
-  const goPanel = () => {
-    if (!user) return nav("/login");
-    if (user.role === "manager") return nav("/gerente");
-    if (user.profileType === "interpreter") return nav("/interprete");
-    return nav("/usuario");
+  const items = useMemo(() => {
+    const arr = [
+      { path: "/", icon: "🏠", label: "Inicio" },
+      { path: "/ecosistema", icon: "🌐", label: "Ecosistema" },
+      { path: "/alianzas", icon: "🤝", label: "Alianzas" },
+      { path: "/interpretes", icon: "🧑‍💼", label: "Intérpretes" },
+      { path: "/mapa", icon: "🗺️", label: "Mapa" },
+      { path: "/cursos", icon: "🎓", label: "Cursos" },
+    ];
+
+    if (!user) {
+      return [
+        { path: "/login", icon: "🔐", label: "Ingresar" },
+        { path: "/register", icon: "✍️", label: "Registro" },
+        ...arr,
+      ];
+    }
+
+    return [
+      { path: panelPath, icon: "🚀", label: "Mi Panel" },
+      { path: "/solicitud", icon: "🎥", label: "Solicitar" },
+      { path: "/historial", icon: "📜", label: "Historial" },
+      ...arr,
+      { path: "/denuncias", icon: "⚖️", label: "Reportes" },
+    ];
+  }, [user, panelPath]);
+
+  const go = (path) => {
+    nav(path);
+    setOpen(false);
   };
 
-  const clearFilters = () => setFilters({ mode: "now", service: "all", zone: "all" });
+  const doLogout = async () => {
+    await logout?.();
+    setOpen(false);
+    nav("/", { replace: true });
+  };
+
+  const clearFilters = () => {
+    if (!setFilters) return;
+    setFilters({ mode: "now", service: "all", zone: "all" });
+  };
 
   return (
-    <div className="md:hidden nav-shell">
-      <div className={"nav-float " + (hidden ? "nav-hidden" : "")}>
-        <div className="mx-3 mt-3 tron-card p-4">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              className="tron-btn tron-primary px-4 py-2 flex items-center gap-2"
-              onClick={() => nav("/")}
-            >
-              <span className="text-lg">🤟</span>
-              <span className="text-sm font-semibold">InterpreteYa</span>
-            </button>
+    <div className="lg:hidden">
+      <div className={"iy-mobile-top " + (hidden && !open ? "iy-mobile-hidden" : "")}>
+        <div className="iy-mobile-bar">
+          <button className="iy-brand-mini" onClick={() => go("/")}>
+            <span className="text-xl">🤟</span>
+            <span>
+              <b>InterpreteYa</b>
+              <small>{crumb}</small>
+            </span>
+          </button>
 
-            <div className="flex items-center gap-2">
-              {!user ? (
-                <>
-                  <button className="tron-btn px-4 py-2" onClick={() => nav("/login")}>
-                    🔐
-                  </button>
-                  <button className="tron-btn px-4 py-2" onClick={() => nav("/register")}>
-                    ✍️
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button className="tron-btn px-4 py-2" onClick={goPanel}>
-                    👤
+          <div className="flex items-center gap-2">
+            <button className="iy-icon-btn" onClick={() => go(panelPath)}>
+              🚀
+            </button>
+            <button className="iy-icon-btn" onClick={() => setOpen((v) => !v)}>
+              {open ? "✖" : "☰"}
+            </button>
+          </div>
+        </div>
+
+        {open && (
+          <div className="iy-mobile-drawer">
+            <div className="grid grid-cols-2 gap-2">
+              <button className="tron-btn tron-danger py-3 font-semibold" onClick={() => go("/solicitud")}>
+                🚨 SOS
+              </button>
+              <button className="tron-btn tron-primary py-3 font-semibold" onClick={() => go("/solicitud")}>
+                🎥 Solicitar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {items.map((it) => (
+                <button
+                  key={it.path}
+                  className={"tron-btn py-3 " + (loc.pathname === it.path ? "tron-primary" : "")}
+                  onClick={() => go(it.path)}
+                >
+                  <div className="text-xl">{it.icon}</div>
+                  <div className="text-xs mt-1">{it.label}</div>
+                </button>
+              ))}
+            </div>
+
+            {filters && setFilters && (
+              <div className="mt-3 tron-card p-3">
+                <div className="text-xs text-white/60 mb-2">Filtros rápidos</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    className={"tron-btn py-3 " + (filters.mode === "now" ? "tron-primary" : "")}
+                    onClick={() => setFilters((f) => ({ ...f, mode: "now" }))}
+                  >
+                    ⚡
                   </button>
                   <button
-                    className="tron-btn px-4 py-2"
-                    onClick={async () => {
-                      await logout?.();
-                      nav("/", { replace: true });
-                    }}
+                    className={"tron-btn py-3 " + (filters.mode === "schedule" ? "tron-primary" : "")}
+                    onClick={() => setFilters((f) => ({ ...f, mode: "schedule" }))}
                   >
-                    🚪
+                    📅
                   </button>
-                </>
-              )}
-            </div>
-          </div>
+                  <button
+                    className={"tron-btn py-3 " + (filters.mode === "video" ? "tron-primary" : "")}
+                    onClick={() => setFilters((f) => ({ ...f, mode: "video" }))}
+                  >
+                    🎥
+                  </button>
+                </div>
+                <button className="tron-btn tron-muted w-full mt-2" onClick={clearFilters}>
+                  🧹 Limpiar filtros
+                </button>
+              </div>
+            )}
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="tron-chip">📍 {crumb}</span>
-            <span className="tron-chip">
-              {filters.mode === "now" ? "⚡" : filters.mode === "schedule" ? "📅" : "🎥"}
-            </span>
-            <span className="tron-chip">{user ? "✅" : "🔒"}</span>
-          </div>
-
-          <div className="mt-3 glow-line" />
-
-          {/* MODO (rápido) */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <button
-              className={"tron-btn py-3 font-semibold " + (filters.mode === "now" ? "tron-primary" : "")}
-              onClick={() => setFilters((f) => ({ ...f, mode: "now" }))}
-            >
-              ⚡
-            </button>
-            <button
-              className={"tron-btn py-3 font-semibold " + (filters.mode === "schedule" ? "tron-primary" : "")}
-              onClick={() => setFilters((f) => ({ ...f, mode: "schedule" }))}
-            >
-              📅
-            </button>
-            <button
-              className={"tron-btn py-3 font-semibold " + (filters.mode === "video" ? "tron-primary" : "")}
-              onClick={() => setFilters((f) => ({ ...f, mode: "video" }))}
-            >
-              🎥
-            </button>
-          </div>
-
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button className="tron-btn tron-muted py-2" onClick={clearFilters}>
-              🧹 Limpiar
-            </button>
-            <button className="tron-btn py-2" onClick={goPanel}>
-              {user ? "⚡ Panel" : "🔐 Ingresar"}
-            </button>
-          </div>
-
-          {!user && (
-            <div className="text-[11px] text-white/55 mt-3">
-              🔒 Funciones avanzadas se habilitan al iniciar sesión.
-            </div>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="mx-3 mt-3 tron-card p-3">
-          <div className="flex gap-2 overflow-x-auto">
-            {tabs.map((t) => (
-              <button
-                key={t.path}
-                className={
-                  "tron-btn min-w-[96px] py-3 flex flex-col items-center gap-1 " +
-                  (loc.pathname === t.path ? "tron-primary" : "")
-                }
-                onClick={() => nav(t.path)}
-              >
-                <div className="text-xl">{t.icon}</div>
-                <div className="text-[12px] text-white/75">{t.label}</div>
+            {user ? (
+              <button className="tron-btn tron-muted w-full mt-3 py-3" onClick={doLogout}>
+                🚪 Cerrar sesión
               </button>
-            ))}
+            ) : (
+              <div className="text-xs text-white/55 mt-3">
+                🔒 Inicia sesión para usar solicitudes, video y panel.
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
+
+      {!open && (
+        <button className="iy-floating-menu" onClick={() => setOpen(true)}>
+          ☰
+        </button>
+      )}
     </div>
   );
 }

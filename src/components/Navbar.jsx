@@ -12,25 +12,35 @@ export default function Navbar() {
   const items = useMemo(() => {
     const base = [
       { path: "/", icon: "🏠", label: "Inicio" },
-      { path: "/solicitud", icon: "📅", label: "Servicios" },
-      { path: "/cursos", icon: "🎓", label: "Cursos" },
-      { path: "/denuncias", icon: "⚖️", label: "Reportes" },
+      { path: "/ecosistema", icon: "🌐", label: "Ecosistema" },
       { path: "/alianzas", icon: "🤝", label: "Alianzas" },
+      { path: "/interpretes", icon: "🧑‍💼", label: "Intérpretes" },
+      { path: "/mapa", icon: "🗺️", label: "Mapa" },
+      { path: "/cursos", icon: "🎓", label: "Cursos" },
+      { path: "/historial", icon: "📜", label: "Historial" },
     ];
 
-    // accesos rápidos según sesión
     if (!user) {
-      base.unshift({ path: "/login", icon: "🔐", label: "Ingresar" });
-      base.unshift({ path: "/register", icon: "✍️", label: "Registrarse" });
-    } else if (user.role === "manager") {
-      base.unshift({ path: "/gerente", icon: "🧑‍💼", label: "Gerente" });
-    } else if (user.profileType === "interpreter") {
-      base.unshift({ path: "/interprete", icon: "🧑‍💼", label: "Intérprete" });
-    } else {
-      base.unshift({ path: "/usuario", icon: "🧏‍♀️", label: "Usuario" });
+      return [
+        { path: "/register", icon: "✍️", label: "Registro" },
+        { path: "/login", icon: "🔐", label: "Ingresar" },
+        ...base,
+      ];
     }
 
-    return base;
+    if (user.role === "manager") {
+      return [{ path: "/gerente", icon: "🧑‍💼", label: "Mi Panel" }, ...base];
+    }
+
+    if (user.profileType === "interpreter") {
+      return [{ path: "/interprete", icon: "🧑‍💼", label: "Mi Panel" }, ...base];
+    }
+
+    return [
+      { path: "/usuario", icon: "🧏", label: "Mi Panel" },
+      { path: "/solicitud", icon: "🎥", label: "Solicitar" },
+      ...base,
+    ];
   }, [user]);
 
   const go = (path) => {
@@ -38,32 +48,40 @@ export default function Navbar() {
     setOpen(false);
   };
 
+  const doLogout = async () => {
+    await logout?.();
+    setOpen(false);
+    nav("/login", { replace: true });
+  };
+
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-6">
+    <div className="hidden lg:block max-w-6xl mx-auto px-4 pt-5">
       <div className="tron-card p-4">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:block">
-              <LogoFrame />
-            </div>
-
-            <div className="leading-tight">
-              <div className="text-lg font-semibold tracking-wide flex items-center gap-2">
-                InterpreteYa <span className="tron-chip">🤟 LSCh</span>
+        <div className="flex items-center justify-between gap-4">
+          <button
+            className="flex items-center gap-3 text-left"
+            onClick={() => go("/")}
+          >
+            <LogoFrame />
+            <div>
+              <div className="text-lg font-bold tracking-wide h-title">
+                InterpreteYa
               </div>
-              <div className="text-xs text-white/70">
-                Visual • Intuitivo • Comunidad Sorda
+              <div className="text-xs text-white/65">
+                Plataforma autónoma LSCh
               </div>
             </div>
-          </div>
+          </button>
 
-          {/* Desktop actions */}
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button className="tron-btn tron-primary px-5" onClick={() => go("/panel")}>
+              🚀 Ir a mi panel
+            </button>
+
             {!user ? (
               <>
                 <button className="tron-btn" onClick={() => go("/login")}>🔐 Ingresar</button>
-                <button className="tron-btn" onClick={() => go("/register")}>✍️ Registrarse</button>
+                <button className="tron-btn" onClick={() => go("/register")}>✍️ Registro</button>
               </>
             ) : (
               <>
@@ -72,98 +90,50 @@ export default function Navbar() {
                     ? "🧑‍💼 Gerente"
                     : user.profileType === "interpreter"
                     ? "🧑‍💼 Intérprete"
-                    : "🧏‍♀️ Usuario"}
+                    : "🧏 Usuario"}
                 </span>
-                <button
-                  className="tron-btn"
-                  onClick={() => {
-                    logout();
-                    go("/login");
-                  }}
-                >
-                  🚪 Salir
-                </button>
+                <button className="tron-btn" onClick={doLogout}>🚪 Salir</button>
               </>
             )}
 
-            <button className="tron-btn w-[52px] h-[48px] grid place-items-center"
+            <button
+              className="tron-btn w-[52px] h-[50px] grid place-items-center"
               onClick={() => setOpen((v) => !v)}
-              aria-label="Menú"
-              title="Menú"
             >
               ☰
             </button>
           </div>
-
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden tron-btn w-[52px] h-[48px] grid place-items-center"
-            onClick={() => setOpen((v) => !v)}
-            aria-label="Menú"
-            title="Menú"
-          >
-            ☰
-          </button>
         </div>
 
         <div className="mt-3 glow-line" />
 
-        {/* Nav pills (desktop) */}
-        <div className="hidden md:flex flex-wrap gap-2 mt-4">
+        <div className="mt-4 flex flex-wrap gap-2">
           {items.map((it) => {
             const active = loc.pathname === it.path;
             return (
               <button
                 key={it.path}
-                className={
-                  "tron-btn flex items-center gap-2 " +
-                  (active ? "border-cyan-300/60 shadow-[0_0_18px_rgba(0,255,255,.18)]" : "")
-                }
+                className={"tron-btn flex items-center gap-2 " + (active ? "tron-primary" : "")}
                 onClick={() => go(it.path)}
-                aria-label={it.label}
-                title={it.label}
               >
-                <span className="text-xl">{it.icon}</span>
-                <span className="text-sm">{it.label}</span>
+                <span>{it.icon}</span>
+                <span>{it.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Nav list (mobile) */}
         {open && (
-          <div className="md:hidden mt-4 grid gap-2">
-            {items.map((it) => {
-              const active = loc.pathname === it.path;
-              return (
-                <button
-                  key={it.path}
-                  className={
-                    "tron-btn flex items-center justify-between " +
-                    (active ? "border-cyan-300/60" : "")
-                  }
-                  onClick={() => go(it.path)}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-xl">{it.icon}</span>
-                    <span className="text-sm">{it.label}</span>
-                  </span>
-                  <span className="opacity-70">➜</span>
-                </button>
-              );
-            })}
-
-            {user && (
-              <button
-                className="tron-btn text-center"
-                onClick={() => {
-                  logout();
-                  go("/login");
-                }}
-              >
-                🚪 Cerrar sesión
-              </button>
-            )}
+          <div className="mt-4 grid lg:grid-cols-3 gap-2">
+            <button className="tron-btn tron-danger py-3" onClick={() => go("/solicitud")}>
+              🚨 Emergencia / Solicitud rápida
+            </button>
+            <button className="tron-btn py-3" onClick={() => go("/denuncias")}>
+              ⚖️ Reportes / Denuncias
+            </button>
+            <button className="tron-btn py-3" onClick={() => go("/gerente/pagos")}>
+              💳 Pagos
+            </button>
           </div>
         )}
       </div>
