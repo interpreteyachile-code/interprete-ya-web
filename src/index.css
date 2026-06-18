@@ -1532,3 +1532,73 @@ button,
     border-radius: 22px;
   }
 }
+
+/* =========================================================
+   INTERPRETEYA FINAL FIX RESPONSIVE
+   Móvil + Tablet + Notebook + PC
+========================================================= */
+
+@media (max-width: 1023px){
+  body{
+    padding-bottom: 90px;
+  }
+
+  .iy-mobile-top{
+    position: sticky;
+    top: 0;
+    z-index: 999;
+  }
+
+  .iy-mobile-hidden{
+    transform: translateY(-120%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .iy-mobile-bar{
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  .iy-mobile-drawer{
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+    max-height: calc(100vh - 85px);
+    overflow-y: auto;
+  }
+
+  .iy-floating-menu{
+    display: grid;
+    place-items: center;
+  }
+}
+
+@media (min-width: 1024px){
+  .iy-mobile-top,
+  .iy-floating-menu{
+    display: none !important;
+  }
+
+  body{
+    padding-bottom: 30px;
+  }
+}
+
+@media (max-width: 640px){
+  .iy-hero-title{
+    font-size: 38px !important;
+  }
+
+  .iy-hero-text{
+    font-size: 16px !important;
+  }
+
+  .iy-home-hero{
+    padding: 18px !important;
+  }
+
+  .tron-btn{
+    width: 100%;
+  }
+}
