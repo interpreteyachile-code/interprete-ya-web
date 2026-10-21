@@ -1,186 +1,83 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import AppShell from "./app/AppShell";
+import React, { useState } from "react";
+import "./App.css";
 
-import Home from "./pages/Home";
-import Ecosistema from "./pages/Ecosistema";
-import Alianzas from "./pages/Alianzas";
-import Propuesta from "./pages/Propuesta";
-import InterpretesDisponibles from "./pages/InterpretesDisponibles";
-import MapaInterpretes from "./pages/MapaInterpretes";
+export default function App() {
+  const [apagado, setApagado] = useState(false);
 
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import LoginGerente from "./pages/LoginGerente";
-import Pending from "./pages/Pending";
-
-import Solicitud from "./pages/Solicitud";
-import VideoRoom from "./pages/VideoRoom";
-import CalificarServicio from "./pages/CalificarServicio";
-import HistorialServicios from "./pages/HistorialServicios";
-import Denuncias from "./pages/Denuncias";
-
-import Cursos from "./pages/Cursos";
-import MisPagos from "./pages/MisPagos";
-import GestionPagos from "./pages/GestionPagos";
-
-import UserDashboard from "./pages/UserDashboard";
-import InterpreterDashboard from "./pages/InterpreterDashboard";
-import ManagerDashboard from "./pages/ManagerDashboard";
-
-import ProtectedRoute from "./auth/ProtectedRoute";
-
-function RedirectByRole() {
-  const rawUser = localStorage.getItem("iy_session_v1");
-
-  if (!rawUser) return <Navigate to="/login" replace />;
-
-  try {
-    const user = JSON.parse(rawUser);
-
-    if (user?.status !== "active") return <Navigate to="/pending" replace />;
-
-    if (user?.role === "manager") return <Navigate to="/gerente" replace />;
-    if (user?.profileType === "interpreter") return <Navigate to="/interprete" replace />;
-    if (user?.profileType === "user") return <Navigate to="/usuario" replace />;
-
-    return <Navigate to="/" replace />;
-  } catch {
-    return <Navigate to="/login" replace />;
-  }
-}
-
-function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/ecosistema" element={<Ecosistema />} />
-          <Route path="/alianzas" element={<Alianzas />} />
-          <Route path="/propuesta" element={<Propuesta />} />
-          <Route path="/interpretes" element={<InterpretesDisponibles />} />
-          <Route path="/mapa" element={<MapaInterpretes />} />
+    <main className={`final-page ${apagado ? "apagado" : ""}`}>
+      {!apagado ? (
+        <section className="final-card">
+          <button
+            type="button"
+            className="power-circle"
+            onClick={() => setApagado(true)}
+            aria-label="Mostrar despedida final"
+            title="Finalizar"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 2v10" />
+              <path d="M18.36 6.64a9 9 0 1 1-12.72 0" />
+            </svg>
+          </button>
 
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/pending" element={<Pending />} />
-          <Route path="/g/login" element={<LoginGerente />} />
-          <Route path="/login-gerente" element={<Navigate to="/g/login" replace />} />
-          <Route path="/panel" element={<RedirectByRole />} />
+          <p className="project-status">
+            ESTADO DEL PROYECTO: FINALIZADO
+          </p>
 
-          <Route
-            path="/solicitud"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <Solicitud />
-              </ProtectedRoute>
-            }
-          />
+          <h1>INTERPRETEYA</h1>
+          <hr />
 
-          <Route
-            path="/video/:roomId"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <VideoRoom />
-              </ProtectedRoute>
-            }
-          />
+          <h2>FIN DE UNA ETAPA.</h2>
 
-          <Route
-            path="/calificar/:serviceId"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <CalificarServicio />
-              </ProtectedRoute>
-            }
-          />
+          <p className="message">
+            Informamos que el desarrollo de la plataforma
+            InterpreteYa ha sido suspendido de manera indefinida.
+          </p>
 
-          <Route
-            path="/historial"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <HistorialServicios />
-              </ProtectedRoute>
-            }
-          />
+          <p className="message">
+            Agradecemos a quienes formaron parte de este camino,
+            por su tiempo, dedicación y compromiso.
+          </p>
 
-          <Route
-            path="/usuario"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <UserDashboard />
-              </ProtectedRoute>
-            }
-          />
+          <p className="goodbye">ADIÓS.</p>
 
-          <Route
-            path="/pagos"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <MisPagos />
-              </ProtectedRoute>
-            }
-          />
+          <hr />
 
-          <Route
-            path="/interprete"
-            element={
-              <ProtectedRoute
-                allowRoles={["client"]}
-                allowProfileTypes={["interpreter"]}
-                requireStatus="active"
-              >
-                <InterpreterDashboard />
-              </ProtectedRoute>
-            }
-          />
+          <footer>
+            <p>INTERPRETEYA © 2026</p>
+            <p>
+              Desarrollo suspendido · Sitio fuera de servicio
+            </p>
+          </footer>
+        </section>
+      ) : (
+        <section className="shutdown-screen" aria-live="polite">
+          <div className="shutdown-power">⏻</div>
+          <h1>FIN.</h1>
+          <h2>GRACIAS POR TODO.</h2>
+          <p>INTERPRETEYA © 2026</p>
 
-          <Route
-            path="/cursos"
-            element={
-              <ProtectedRoute requireStatus="active">
-                <Cursos />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/denuncias"
-            element={
-              <ProtectedRoute
-                allowRoles={["manager", "client"]}
-                requireStatus="active"
-              >
-                <Denuncias />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/gerente"
-            element={
-              <ProtectedRoute allowRoles={["manager"]} requireStatus="active">
-                <ManagerDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/gerente/pagos"
-            element={
-              <ProtectedRoute allowRoles={["manager"]} requireStatus="active">
-                <GestionPagos />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          <button
+            type="button"
+            className="return-button"
+            onClick={() => setApagado(false)}
+          >
+            VOLVER
+          </button>
+        </section>
+      )}
+    </main>
   );
 }
-
-export default App;
